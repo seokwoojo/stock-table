@@ -22,7 +22,7 @@ function recalcAll(){
       }
       return { principal: 0, current: 0 };
     }
-    const PORTFOLIO_TYPES = ['ISA','CMA','과세연금저축','비과세연금저축','IRP'];
+    const PORTFOLIO_TYPES = ['ISA','CMA','과세 연금저축','비과세 연금저축','IRP'];
     if(PORTFOLIO_TYPES.includes(s.type)){
       const portPrincipal = state.portfolios.filter(p=>p.type===s.type).reduce((a,p)=>a+p.stocks.reduce((b,st)=>b+st.qty*st.avgPrice,0),0);
       const portVal       = state.portfolios.filter(p=>p.type===s.type).reduce((a,p)=>a+p.stocks.reduce((b,st)=>b+st.qty*st.curPrice,0),0);
@@ -250,8 +250,8 @@ if(!loaded){
   const defaults = [
     {type:'ISA',name:'ISA 계좌',monthlyAmt:0,totalPrincipal:0,currentAmt:0,maturityDate:''},
     {type:'CMA',name:'CMA 통장',monthlyAmt:0,totalPrincipal:0,currentAmt:0,maturityDate:''},
-    {type:'과세연금저축',name:'과세연금저축',monthlyAmt:0,totalPrincipal:0,currentAmt:0,maturityDate:''},
-    {type:'비과세연금저축',name:'비과세연금저축',monthlyAmt:0,totalPrincipal:0,currentAmt:0,maturityDate:''},
+    {type:'과세 연금저축',name:'과세 연금저축',monthlyAmt:0,totalPrincipal:0,currentAmt:0,maturityDate:''},
+    {type:'비과세 연금저축',name:'비과세 연금저축',monthlyAmt:0,totalPrincipal:0,currentAmt:0,maturityDate:''},
     {type:'IRP',name:'IRP 계좌',monthlyAmt:0,totalPrincipal:0,currentAmt:0,maturityDate:''},
     {type:'적금',name:'적금',monthlyAmt:0,totalPrincipal:0,currentAmt:0,maturityDate:''},
   ];

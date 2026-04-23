@@ -32,8 +32,9 @@ function renderSavings(){
     <div class="savings-card" id="sc-${s.id}">
       <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px;">
         <div style="flex:1;min-width:0;">
-          <select style="background:transparent;border:none;font-weight:700;font-size:13px;color:var(--text);padding:0;margin-bottom:6px;cursor:pointer;width:100%;" onchange="updateSavings(${s.id},'type',this.value)">
-            ${ACCOUNT_TYPES.map(t=>`<option value="${t}" ${s.type===t?'selected':''}>${t}</option>`).join('')}
+          <div style="font-family:var(--mono);font-size:12px;font-weight:700;color:var(--accent);margin-bottom:4px;">${s.type}</div>
+          <select style="background:transparent;border:none;font-size:11px;color:var(--muted);padding:0;margin-bottom:6px;cursor:pointer;width:100%;" onchange="updateSavings(${s.id},'broker',this.value)">
+            ${BROKERS.map(b=>`<option value="${b}" ${(s.broker||'증권사 선택')===b?'selected':''}>${b}</option>`).join('')}
           </select>
           <div style="position:relative;">
             <input class="savings-name-input"
@@ -54,7 +55,7 @@ function renderSavings(){
       </div>
       ${(()=>{
         const isSavings = s.type === '적금';
-        const PORTFOLIO_TYPES = ['ISA','CMA','과세연금저축','비과세연금저축','IRP'];
+        const PORTFOLIO_TYPES = ['ISA','CMA','과세 연금저축','비과세 연금저축','IRP'];
         const isPortfolioType = PORTFOLIO_TYPES.includes(s.type);
 
         // 포트폴리오 타입: 평가금액(원금) + 총수익(주가+배당) 자동 계산

@@ -22,7 +22,7 @@ function calcPosition(s){
 }
 
 // ─────────────── PORTFOLIO ───────────────
-const FIXED_PORTFOLIO_TYPES = ['ISA','CMA','과세연금저축','IRP'];
+const FIXED_PORTFOLIO_TYPES = ['ISA','CMA','과세 연금저축','비과세 연금저축','IRP'];
 
 function ensureFixedPortfolios(){
   FIXED_PORTFOLIO_TYPES.forEach(type => {
@@ -385,18 +385,17 @@ function renderPortfolios(){
          <input class="portfolio-name-input" style="background:transparent;border:none;border-bottom:1px dashed var(--border);color:var(--text);font-weight:700;font-size:14px;padding:2px 6px;min-width:120px;"
            value="${p.accountName}" onclick="event.stopPropagation()"
            data-cb="${`updatePortfolioName(${p.id},v)`.replace(/"/g,'&quot;')}"
-           oninput="nInputText(this)" onblur="nBlurText(this)" onfocus="this.style.borderColor='var(--accent)'">`;
+           oninput="nInputText(this)" onblur="nBlurText(this)" onfocus="this.style.borderColor='var(--accent)'">
+         <select style="font-family:var(--mono);font-size:11px;background:var(--surface2);border:1px solid var(--border);color:var(--text2);padding:3px 6px;border-radius:2px;cursor:pointer;margin-left:4px;"
+           onclick="event.stopPropagation()" onchange="updatePortfolioBroker(${p.id},this.value)">
+           ${BROKERS.map(b=>`<option value="${b}" ${(p.broker||'증권사 선택')===b?'selected':''}>${b}</option>`).join('')}
+         </select>`;
 
     const headerClickAttr = isFixed ? '' : `onclick="toggleAccount(${p.id})"`;
     const chevEl    = isFixed ? '' : `<span class="chevron open" id="chev-${p.id}">▾</span>`;
     const deleteBtn = isFixed
       ? `<span style="font-size:10px;font-family:var(--mono);color:var(--text3);padding:4px 8px;opacity:0.5;">고정</span>`
       : `<button class="btn btn-danger" onclick="event.stopPropagation();removePortfolio(${p.id})" style="padding:4px 8px;">✕</button>`;
-    const typeSelect = isFixed ? ''
-      : `<select style="font-family:var(--mono);font-size:11px;background:var(--surface2);border:1px solid var(--border);color:var(--text2);padding:3px 6px;border-radius:2px;cursor:pointer;"
-           onclick="event.stopPropagation()" onchange="updatePortfolioType(${p.id},this.value)">
-           ${ACCOUNT_TYPES.map(t=>`<option value="${t}" ${p.type===t?'selected':''}>${t}</option>`).join('')}
-         </select>`;
 
     const stockRows = p.stocks.length === 0
       ? `<tr class="empty-row"><td colspan="16">종목이 없습니다 — 아래 버튼으로 추가하세요</td></tr>`
@@ -493,7 +492,7 @@ function renderPortfolios(){
               <button class="trade-btn trade-btn-buy" style="padding:3px 10px;font-size:10px;" onclick="event.stopPropagation();openTradeModal(${p.id})">거래</button>
             </div>
           </div>
-          ${typeSelect}${deleteBtn}${chevEl}
+          ${deleteBtn}${chevEl}
         </div>
       </div>
       <div class="account-body" id="pb-${p.id}">
@@ -630,6 +629,11 @@ function updateMaturityMonthly(id, value){
   scheduleSave();
 }
 
+function updatePortfolioBroker(id, val){
+  const p = state.portfolios.find(x=>x.id===id);
+  if(p){ p.broker = val; scheduleSave(); }
+}
+
 function updatePortfolioName(id, val){
   const p = state.portfolios.find(x=>x.id===id);
   if(!p) return;
@@ -644,7 +648,7 @@ function updatePortfolioType(id, val){
   const p = state.portfolios.find(x=>x.id===id);
   if(!p) return;
   p.type = val;
-  const defaultNames = ['ISA','CMA','과세연금저축','비과세연금저축','IRP','적금','기타','새 계좌'];
+  const defaultNames = ['ISA','CMA','과세 연금저축','비과세 연금저축','IRP','적금','기타','새 계좌'];
   if(defaultNames.some(n=>p.accountName===n||p.accountName===n+' 포트폴리오'||p.accountName==='새 계좌')){
     p.accountName = val+' 포트폴리오';
   }
