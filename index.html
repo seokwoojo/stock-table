@@ -585,17 +585,17 @@
 <script>
 // ─────────────── STATE ───────────────
 const state = {
-  savings: [],        // { id, type, name, monthlyAmt, maturityDate }
+  savings: [],        // { id, type, name, monthlyAmt, totalPrincipal, currentAmt, maturityDate }
   portfolios: [],     // { id, accountName, type, stocks: [{id, name, qty, avgPrice, curPrice, dividend, monthlyBuy}] }
   maturity: [],       // { id, name, type, principal, rate, startDate, endDate }
 };
 
 // Account types
-const ACCOUNT_TYPES = ['ISA','CMA','비과세 연금저축','과세 연금저축','IRP','적금1','적금2','기타'];
+const ACCOUNT_TYPES = ['ISA','CMA','과세연금저축','비과세연금저축','IRP','적금','기타'];
 const TYPE_CLASS = {
   'ISA':'tag-isa','CMA':'tag-cma',
-  '비과세 연금저축':'tag-pension','과세 연금저축':'tag-pension',
-  'IRP':'tag-irp','적금1':'tag-savings','적금2':'tag-savings','기타':''
+  '과세연금저축':'tag-pension','비과세연금저축':'tag-pension',
+  'IRP':'tag-irp','적금':'tag-savings','기타':''
 };
 
 // ─────────────── UTILS ───────────────
@@ -622,7 +622,7 @@ updateClock();
 // ─────────────── SAVINGS ───────────────
 function addSavingsAccount(){
   const id = uid();
-  state.savings.push({id, type:'ISA', name:'새 계좌', monthlyAmt:0, maturityDate:''});
+  state.savings.push({id, type:'ISA', name:'새 계좌', monthlyAmt:0, totalPrincipal:0, currentAmt:0, maturityDate:''});
   renderSavings();
   recalcAll();
   // Focus the name input of the new card after render
@@ -658,11 +658,46 @@ function renderSavings(){
         <button class="btn btn-danger" style="margin-left:8px;flex-shrink:0;" onclick="removeSavings(${s.id})">✕</button>
       </div>
       <div class="type-badge">월 저축</div>
-      <div style="display:flex;align-items:center;gap:4px;">
+      <div style="display:flex;align-items:center;gap:4px;margin-bottom:14px;">
         <span style="font-family:var(--mono);font-size:13px;color:var(--muted);">₩</span>
         <input type="number" style="background:transparent;border:none;border-bottom:1px dashed var(--accent);font-family:var(--mono);font-size:20px;font-weight:600;color:var(--text);padding:2px 0;width:100%;" 
           value="${s.monthlyAmt||''}" placeholder="0" oninput="updateSavings(${s.id},'monthlyAmt',this.value)">
       </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px;">
+        <div>
+          <div style="font-size:10px;color:var(--muted);letter-spacing:1px;text-transform:uppercase;margin-bottom:4px;">총 투자 원금</div>
+          <div style="display:flex;align-items:center;gap:3px;">
+            <span style="font-family:var(--mono);font-size:11px;color:var(--muted);">₩</span>
+            <input type="number"
+              style="background:transparent;border:none;border-bottom:1px dashed var(--border);font-family:var(--mono);font-size:13px;font-weight:600;color:var(--text2);padding:2px 0;width:100%;transition:border-color .15s;"
+              value="${s.totalPrincipal||''}" placeholder="0"
+              oninput="updateSavings(${s.id},'totalPrincipal',this.value)"
+              onfocus="this.style.borderColor='var(--accent)'"
+              onblur="this.style.borderColor='var(--border)'">
+          </div>
+        </div>
+        <div>
+          <div style="font-size:10px;color:var(--muted);letter-spacing:1px;text-transform:uppercase;margin-bottom:4px;">현재 금액</div>
+          <div style="display:flex;align-items:center;gap:3px;">
+            <span style="font-family:var(--mono);font-size:11px;color:var(--muted);">₩</span>
+            <input type="number"
+              style="background:transparent;border:none;border-bottom:1px dashed var(--border);font-family:var(--mono);font-size:13px;font-weight:600;color:var(--text2);padding:2px 0;width:100%;transition:border-color .15s;"
+              value="${s.currentAmt||''}" placeholder="0"
+              oninput="updateSavings(${s.id},'currentAmt',this.value)"
+              onfocus="this.style.borderColor='var(--accent)'"
+              onblur="this.style.borderColor='var(--border)'">
+          </div>
+        </div>
+      </div>
+      ${(s.totalPrincipal > 0 && s.currentAmt > 0) ? (() => {
+        const pnl = s.currentAmt - s.totalPrincipal;
+        const rate = (pnl / s.totalPrincipal * 100).toFixed(2);
+        const isPos = pnl >= 0;
+        return `<div style="display:flex;align-items:center;justify-content:space-between;background:${isPos?'var(--accent-dim)':'var(--red-dim)'};border-radius:2px;padding:5px 8px;margin-bottom:10px;">
+          <span style="font-size:10px;color:var(--muted);letter-spacing:1px;">수익률</span>
+          <span style="font-family:var(--mono);font-size:12px;font-weight:700;color:${isPos?'var(--accent)':'var(--red)'};">${isPos?'+':''}${rate}% (${isPos?'+':''}${fmtKRW(pnl)})</span>
+        </div>`;
+      })() : ''}
       <div style="margin-top:12px;">
         <div style="font-size:10px;color:var(--muted);letter-spacing:1px;text-transform:uppercase;margin-bottom:4px;">만기일 (선택)</div>
         <input type="date" style="background:transparent;border:none;border-bottom:1px dashed var(--border);font-family:var(--mono);font-size:11px;color:var(--text2);padding:2px 0;width:100%;" 
@@ -676,7 +711,7 @@ function renderSavings(){
 function updateSavings(id, field, value){
   const s = state.savings.find(x=>x.id===id);
   if(!s) return;
-  s[field] = field==='monthlyAmt' ? Number(value) : value;
+  s[field] = ['monthlyAmt','totalPrincipal','currentAmt'].includes(field) ? Number(value) : value;
   if(field==='maturityDate') renderSavings();
   recalcAll();
 }
@@ -688,7 +723,7 @@ function removeSavings(id){
 
 // ─────────────── PORTFOLIO ───────────────
 // Fixed accounts always displayed (not deletable)
-const FIXED_PORTFOLIO_TYPES = ['ISA','CMA','비과세 연금저축','과세 연금저축','IRP'];
+const FIXED_PORTFOLIO_TYPES = ['ISA','CMA','과세연금저축','IRP'];
 
 function ensureFixedPortfolios(){
   FIXED_PORTFOLIO_TYPES.forEach(type => {
@@ -1141,13 +1176,12 @@ const loaded = loadFromStorage();
 if(!loaded){
   // First-time defaults
   const defaults = [
-    {type:'ISA',name:'ISA 계좌',monthlyAmt:0,maturityDate:''},
-    {type:'CMA',name:'CMA 통장',monthlyAmt:0,maturityDate:''},
-    {type:'비과세 연금저축',name:'비과세 연금저축 펀드',monthlyAmt:0,maturityDate:''},
-    {type:'과세 연금저축',name:'과세 연금저축 펀드',monthlyAmt:0,maturityDate:''},
-    {type:'IRP',name:'IRP 계좌',monthlyAmt:0,maturityDate:''},
-    {type:'적금1',name:'적금1',monthlyAmt:0,maturityDate:''},
-    {type:'적금2',name:'적금2',monthlyAmt:0,maturityDate:''},
+    {type:'ISA',name:'ISA 계좌',monthlyAmt:0,totalPrincipal:0,currentAmt:0,maturityDate:''},
+    {type:'CMA',name:'CMA 통장',monthlyAmt:0,totalPrincipal:0,currentAmt:0,maturityDate:''},
+    {type:'과세연금저축',name:'과세연금저축',monthlyAmt:0,totalPrincipal:0,currentAmt:0,maturityDate:''},
+    {type:'비과세연금저축',name:'비과세연금저축',monthlyAmt:0,totalPrincipal:0,currentAmt:0,maturityDate:''},
+    {type:'IRP',name:'IRP 계좌',monthlyAmt:0,totalPrincipal:0,currentAmt:0,maturityDate:''},
+    {type:'적금',name:'적금',monthlyAmt:0,totalPrincipal:0,currentAmt:0,maturityDate:''},
   ];
   defaults.forEach(d => { state.savings.push({id:uid(),...d}); });
 }
