@@ -467,9 +467,15 @@
       <h1>📊 투자 대시보드</h1>
       <span>Investment Portfolio Tracker</span>
     </div>
-    <div class="header-date">
-      <strong id="today-date"></strong>
-      <span id="today-time"></span>
+    <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+      <div class="header-date" style="margin-right:8px;">
+        <strong id="today-date"></strong>
+        <span id="today-time"></span>
+      </div>
+      <button class="btn btn-ghost" onclick="exportJSON()">📥 내보내기</button>
+      <button class="btn btn-ghost" onclick="importJSON()">📤 불러오기</button>
+      <button class="btn btn-primary" onclick="saveToStorage()">💾 저장</button>
+      <button class="btn btn-danger" style="border:1px solid var(--border);padding:8px 12px;" onclick="clearAll()">🗑️</button>
     </div>
   </header>
 
@@ -912,44 +918,180 @@ function recalcAll(){
   document.getElementById('tb-saveRate').textContent = salary ? saveRatePct+'%' : '—';
 }
 
+// ─────────────── LOCAL STORAGE ───────────────
+const LS_KEY = 'investment_dashboard_v1';
+
+function saveToStorage(){
+  const data = {
+    salary:    document.getElementById('salary').value,
+    totalAsset:document.getElementById('totalAsset').value,
+    savingsGoal:document.getElementById('savingsGoal').value,
+    baseMonth: document.getElementById('baseMonth').value,
+    savings:   state.savings,
+    portfolios:state.portfolios,
+    maturity:  state.maturity,
+    idCnt,
+  };
+  try { localStorage.setItem(LS_KEY, JSON.stringify(data)); } catch(e){}
+  showToast('💾 저장됨');
+}
+
+function loadFromStorage(){
+  try {
+    const raw = localStorage.getItem(LS_KEY);
+    if(!raw) return false;
+    const data = JSON.parse(raw);
+    if(data.salary)     document.getElementById('salary').value     = data.salary;
+    if(data.totalAsset) document.getElementById('totalAsset').value = data.totalAsset;
+    if(data.savingsGoal)document.getElementById('savingsGoal').value= data.savingsGoal;
+    if(data.baseMonth)  document.getElementById('baseMonth').value  = data.baseMonth;
+    if(data.savings)    state.savings    = data.savings;
+    if(data.portfolios) state.portfolios = data.portfolios;
+    if(data.maturity)   state.maturity   = data.maturity;
+    if(data.idCnt)      idCnt = data.idCnt;
+    return true;
+  } catch(e){ return false; }
+}
+
+// Auto-save on any state mutation — debounced
+let saveTimer = null;
+function scheduleSave(){
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(saveToStorage, 800);
+}
+
+// Patch all mutating functions to auto-save
+const _orig = {
+  updateSavings, removeSavings, updateStock, removeStock, removePortfolio,
+  updatePortfolioName, updatePortfolioType, addSavingsAccount, addPortfolioAccount,
+  addStock, updateMaturity, removeMaturity, addMaturityRow
+};
+// Wrap each to call scheduleSave after
+['updateSavings','removeSavings','updateStock','removeStock','removePortfolio',
+ 'updatePortfolioName','updatePortfolioType','addSavingsAccount','addPortfolioAccount',
+ 'addStock','updateMaturity','removeMaturity','addMaturityRow'].forEach(fn => {
+  const orig = window[fn];
+  window[fn] = function(){ orig.apply(this, arguments); scheduleSave(); };
+});
+// Also save on basic input changes
+['salary','totalAsset','savingsGoal','baseMonth'].forEach(id => {
+  document.getElementById(id).addEventListener('input', scheduleSave);
+});
+
+// ─────────────── EXPORT / IMPORT ───────────────
+function exportJSON(){
+  const data = {
+    exportedAt: new Date().toISOString(),
+    salary:    document.getElementById('salary').value,
+    totalAsset:document.getElementById('totalAsset').value,
+    savingsGoal:document.getElementById('savingsGoal').value,
+    baseMonth: document.getElementById('baseMonth').value,
+    savings:   state.savings,
+    portfolios:state.portfolios,
+    maturity:  state.maturity,
+    idCnt,
+  };
+  const blob = new Blob([JSON.stringify(data, null, 2)], {type:'application/json'});
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement('a');
+  a.href = url;
+  const date = new Date().toISOString().slice(0,10);
+  a.download = `투자대시보드_${date}.json`;
+  a.click();
+  URL.revokeObjectURL(url);
+  showToast('📥 파일로 내보내기 완료');
+}
+
+function importJSON(){
+  const input = document.createElement('input');
+  input.type = 'file';
+  input.accept = '.json';
+  input.onchange = e => {
+    const file = e.target.files[0];
+    if(!file) return;
+    const reader = new FileReader();
+    reader.onload = ev => {
+      try {
+        const data = JSON.parse(ev.target.result);
+        if(data.salary)     document.getElementById('salary').value     = data.salary;
+        if(data.totalAsset) document.getElementById('totalAsset').value = data.totalAsset;
+        if(data.savingsGoal)document.getElementById('savingsGoal').value= data.savingsGoal;
+        if(data.baseMonth)  document.getElementById('baseMonth').value  = data.baseMonth;
+        if(data.savings)    state.savings    = data.savings;
+        if(data.portfolios) state.portfolios = data.portfolios;
+        if(data.maturity)   state.maturity   = data.maturity;
+        if(data.idCnt)      idCnt = data.idCnt;
+        renderAll();
+        saveToStorage();
+        showToast('✅ 불러오기 완료!');
+      } catch(err){
+        showToast('❌ 파일 형식이 올바르지 않습니다');
+      }
+    };
+    reader.readAsText(file);
+  };
+  input.click();
+}
+
+function clearAll(){
+  if(!confirm('모든 데이터를 초기화할까요? 이 작업은 되돌릴 수 없습니다.')) return;
+  localStorage.removeItem(LS_KEY);
+  state.savings = []; state.portfolios = []; state.maturity = [];
+  ['salary','totalAsset','savingsGoal'].forEach(id => document.getElementById(id).value = '');
+  document.getElementById('baseMonth').value = new Date().toISOString().slice(0,7);
+  renderAll();
+  showToast('🗑️ 초기화 완료');
+}
+
+function renderAll(){
+  renderSavings();
+  renderPortfolios();
+  renderMaturity();
+  recalcAll();
+}
+
+// ─────────────── TOAST ───────────────
+function showToast(msg){
+  let t = document.getElementById('toast');
+  if(!t){
+    t = document.createElement('div');
+    t.id = 'toast';
+    t.style.cssText = `
+      position:fixed; bottom:28px; right:28px; z-index:9999;
+      background:#1a2e1c; border:1px solid rgba(0,230,118,0.3);
+      color:#e8f5e9; font-family:'IBM Plex Mono',monospace; font-size:12px;
+      padding:10px 18px; border-radius:4px; opacity:0;
+      transition:opacity .25s; pointer-events:none;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.5);
+    `;
+    document.body.appendChild(t);
+  }
+  t.textContent = msg;
+  t.style.opacity = '1';
+  clearTimeout(t._timer);
+  t._timer = setTimeout(() => t.style.opacity = '0', 2200);
+}
+
 // ─────────────── INIT ───────────────
-// Default month
 document.getElementById('baseMonth').value = new Date().toISOString().slice(0,7);
 
-// Default savings
-const defaults = [
-  {type:'ISA',name:'ISA 계좌',monthlyAmt:300000,maturityDate:''},
-  {type:'CMA',name:'CMA 통장',monthlyAmt:200000,maturityDate:''},
-  {type:'연금저축1',name:'연금저축 펀드1',monthlyAmt:200000,maturityDate:''},
-  {type:'연금저축2',name:'연금저축 펀드2',monthlyAmt:100000,maturityDate:''},
-  {type:'IRP',name:'IRP 계좌',monthlyAmt:100000,maturityDate:''},
-  {type:'적금1',name:'청년도약계좌',monthlyAmt:500000,maturityDate:'2027-06-30'},
-  {type:'적금2',name:'정기적금',monthlyAmt:300000,maturityDate:'2025-12-31'},
-];
-defaults.forEach(d => { state.savings.push({id:uid(),...d}); });
-renderSavings();
+const loaded = loadFromStorage();
 
-// Default portfolio
-const p1id = uid();
-state.portfolios.push({
-  id:p1id, accountName:'ISA 계좌 포트폴리오', type:'ISA',
-  stocks:[
-    {id:uid(),name:'삼성전자',qty:50,avgPrice:65000,curPrice:72000,dividend:2.5,monthlyBuy:100000},
-    {id:uid(),name:'KODEX 미국S&P500',qty:30,avgPrice:15000,curPrice:18500,dividend:0,monthlyBuy:150000},
-    {id:uid(),name:'TIGER 미국나스닥100',qty:20,avgPrice:20000,curPrice:25000,dividend:0,monthlyBuy:100000},
-  ]
-});
-const p2id = uid();
-state.portfolios.push({
-  id:p2id, accountName:'연금저축 포트폴리오', type:'연금저축1',
-  stocks:[
-    {id:uid(),name:'KODEX TDF2050',qty:100,avgPrice:12000,curPrice:13500,dividend:0,monthlyBuy:200000},
-    {id:uid(),name:'한국투자 미국배당귀족',qty:50,avgPrice:10000,curPrice:11200,dividend:3.2,monthlyBuy:100000},
-  ]
-});
-renderPortfolios();
-recalcAll();
-renderMaturity();
+if(!loaded){
+  // First-time defaults
+  const defaults = [
+    {type:'ISA',name:'ISA 계좌',monthlyAmt:0,maturityDate:''},
+    {type:'CMA',name:'CMA 통장',monthlyAmt:0,maturityDate:''},
+    {type:'연금저축1',name:'연금저축 펀드1',monthlyAmt:0,maturityDate:''},
+    {type:'연금저축2',name:'연금저축 펀드2',monthlyAmt:0,maturityDate:''},
+    {type:'IRP',name:'IRP 계좌',monthlyAmt:0,maturityDate:''},
+    {type:'적금1',name:'적금1',monthlyAmt:0,maturityDate:''},
+    {type:'적금2',name:'적금2',monthlyAmt:0,maturityDate:''},
+  ];
+  defaults.forEach(d => { state.savings.push({id:uid(),...d}); });
+}
+
+renderAll();
 
 </script>
 </body>
