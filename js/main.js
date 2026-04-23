@@ -79,7 +79,13 @@ function recalcAll(){
 // ─────────────── LOCAL STORAGE ───────────────
 const LS_KEY = 'investment_dashboard_v2';
 
+function syncGasUrl(){
+  const el = document.getElementById('gas-url-input');
+  if(el && el.value.trim()) state.gasUrl = el.value.trim();
+}
+
 function saveToStorage(){
+  syncGasUrl();
   const data = {
     salary:    document.getElementById('salary').value,
     baseMonth: document.getElementById('baseMonth').value,
@@ -131,6 +137,7 @@ function scheduleSave(){
 
 // ─────────────── EXPORT / IMPORT ───────────────
 function exportJSON(){
+  syncGasUrl();
   const data = {
     exportedAt: new Date().toISOString(),
     salary:    document.getElementById('salary').value,
@@ -138,6 +145,7 @@ function exportJSON(){
     savings:   state.savings,
     portfolios:state.portfolios,
     maturity:  state.maturity,
+    gasUrl:    state.gasUrl,
     idCnt,
   };
   const blob = new Blob([JSON.stringify(data, null, 2)], {type:'application/json'});
@@ -251,5 +259,8 @@ if(!loaded){
 }
 
 renderAll();
+startPriceAutoUpdate();
 
-startPriceAutoUpdate(); // 오후 3:30 자동 현재가 갱신 시작
+// GAS URL input에 저장된 값 반영
+const gasEl = document.getElementById('gas-url-input');
+if(gasEl && state.gasUrl) gasEl.value = state.gasUrl;
