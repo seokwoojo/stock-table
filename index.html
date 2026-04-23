@@ -642,7 +642,7 @@ function nBlur(el){
 }
 function nInput(el){
   if(_debMap.has(el)) clearTimeout(_debMap.get(el));
-  _debMap.set(el, setTimeout(()=>{ _execCb(el.dataset.cb, parseComma(el.value)); }, 500));
+  _debMap.set(el, setTimeout(()=>{ _execCb(el.dataset.cb, parseComma(el.value)); }, 1000));
 }
 function _execCb(cbStr, v){
   try{ (new Function('v', cbStr))(v); } catch(e){ console.warn('_execCb error:', cbStr, e); }
@@ -657,16 +657,60 @@ function mkText(value, cbStr, attrs=''){
     onblur="nBlurText(this)"
     ${attrs}>`;
 }
-// 날짜 input — 디바운스 500ms
+// 날짜 input — YYYY/MM/DD 텍스트 입력, 1000ms 디바운스
 function mkDate(value, cbStr, attrs=''){
   const escaped = cbStr.replace(/&/g,'&amp;').replace(/"/g,'&quot;');
-  return `<input type="date" value="${value||''}"
+  // 저장값 YYYY-MM-DD → 표시 YYYY/MM/DD
+  const display = value ? value.replace(/-/g,'/') : '';
+  return `<input type="text" inputmode="numeric" placeholder="YYYY/MM/DD"
+    value="${display}"
     data-cb="${escaped}"
-    oninput="nInputText(this)"
-    onblur="nBlurText(this)"
+    style="max-width:110px;font-family:var(--mono);"
+    oninput="dateTextInput(this)"
+    onblur="dateTextBlur(this)"
     ${attrs}>`;
 }
-// 소수점 숫자(금리 등) input — 디바운스 500ms, type=text
+
+function _parseDateText(raw){
+  // YYYY/MM/DD 또는 YYYYMMDD → YYYY-MM-DD
+  const s = raw.replace(/[\/\-\s]/g,'');
+  if(s.length === 8){
+    return `${s.slice(0,4)}-${s.slice(4,6)}-${s.slice(6,8)}`;
+  }
+  return null;
+}
+
+function dateTextInput(el){
+  // 숫자만 추출
+  let digits = el.value.replace(/[^0-9]/g,'');
+  // 최대 8자리
+  if(digits.length > 8) digits = digits.slice(0,8);
+  // YYYY/MM/DD 포맷으로 재조합
+  let formatted = digits;
+  if(digits.length > 4) formatted = digits.slice(0,4) + '/' + digits.slice(4);
+  if(digits.length > 6) formatted = digits.slice(0,4) + '/' + digits.slice(4,6) + '/' + digits.slice(6);
+  el.value = formatted;
+  // 8자리 완성 시 디바운스 없이 즉시 반영
+  if(digits.length === 8){
+    if(_debMap.has(el)){ clearTimeout(_debMap.get(el)); _debMap.delete(el); }
+    const iso = _parseDateText(formatted);
+    if(iso) _execCb(el.dataset.cb, iso);
+    return;
+  }
+  if(_debMap.has(el)) clearTimeout(_debMap.get(el));
+  _debMap.set(el, setTimeout(()=>{
+    const iso = _parseDateText(el.value);
+    if(iso) _execCb(el.dataset.cb, iso);
+  }, 1000));
+}
+
+function dateTextBlur(el){
+  if(_debMap.has(el)){ clearTimeout(_debMap.get(el)); _debMap.delete(el); }
+  const iso = _parseDateText(el.value);
+  if(iso) _execCb(el.dataset.cb, iso);
+}
+
+// 소수점 숫자(금리, 배당률 등) — 1000ms 디바운스
 function mkNumDec(value, cbStr, attrs=''){
   const escaped = cbStr.replace(/&/g,'&amp;').replace(/"/g,'&quot;');
   return `<input type="text" inputmode="decimal" value="${value||''}" placeholder="0.0"
@@ -679,7 +723,7 @@ function mkNumDec(value, cbStr, attrs=''){
 
 function nInputText(el){
   if(_debMap.has(el)) clearTimeout(_debMap.get(el));
-  _debMap.set(el, setTimeout(()=>{ _execCb(el.dataset.cb, el.value); }, 500));
+  _debMap.set(el, setTimeout(()=>{ _execCb(el.dataset.cb, el.value); }, 1000));
 }
 function nBlurText(el){
   if(_debMap.has(el)){ clearTimeout(_debMap.get(el)); _debMap.delete(el); }
@@ -1213,16 +1257,16 @@ function dDay(dateStr){
   return diff >= 0 ? diff : '만기';
 }
 
-// 만기 시 예상 금액 = 월 저축 × 만기까지 총 개월 수 × (1 + 연금리/100)
-// 적금 이자 계산: 매월 납입 → 평균 운용 기간 = 총 개월/2 로 근사
+// 만기 시 예상 금액: 가입 첫 달 포함 (총 개월+1회 납입) 단리 적금
 function calcMaturityAmt(monthlyAmt, rate, start, end){
   if(!monthlyAmt || !start || !end) return 0;
   const s = new Date(start), e = new Date(end);
   const totalMonths = Math.round((e - s) / (1000*60*60*24*30.44));
   if(totalMonths <= 0) return 0;
-  const totalPrincipal = monthlyAmt * totalMonths;
-  // 단리 적금 이자 = 월 저축 × 개월수(개월수+1)/2 × 연금리/12/100
-  const interest = monthlyAmt * (totalMonths * (totalMonths + 1) / 2) * ((rate||0) / 100 / 12);
+  const payCount = totalMonths + 1; // 최초 가입일 납입 포함
+  const totalPrincipal = monthlyAmt * payCount;
+  // 단리 적금 이자 = 월 저축 × 회차(회차+1)/2 × 연금리/12/100
+  const interest = monthlyAmt * (payCount * (payCount + 1) / 2) * ((rate||0) / 100 / 12);
   return Math.round(totalPrincipal + interest);
 }
 
@@ -1242,7 +1286,7 @@ function renderMaturity(){
     const linkedSaving = state.savings.find(x=>x.id===m.id);
     const monthlyAmt = linkedSaving ? (linkedSaving.monthlyAmt || 0) : 0;
 
-    // 현재 기준 총 납입금 = 가입일부터 오늘까지 경과 개월 수 × 월 저축금액
+    // 현재 기준 총 납입금 = (경과 개월 수 + 1) × 월 저축금액 (최초 가입일 납입 포함)
     let totalPaid = 0;
     if(m.startDate && monthlyAmt > 0){
       const start = new Date(m.startDate);
@@ -1250,7 +1294,7 @@ function renderMaturity(){
       const elapsedMonths = Math.max(0,
         (now.getFullYear() - start.getFullYear()) * 12 + (now.getMonth() - start.getMonth())
       );
-      totalPaid = elapsedMonths * monthlyAmt;
+      totalPaid = (elapsedMonths + 1) * monthlyAmt;
     }
 
     // 만기 시 예상 금액 (단리 적금)
