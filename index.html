@@ -622,9 +622,14 @@ updateClock();
 // ─────────────── SAVINGS ───────────────
 function addSavingsAccount(){
   const id = uid();
-  state.savings.push({id, type:'ISA', name:'ISA 계좌', monthlyAmt:0, maturityDate:''});
+  state.savings.push({id, type:'ISA', name:'새 계좌', monthlyAmt:0, maturityDate:''});
   renderSavings();
   recalcAll();
+  // Focus the name input of the new card after render
+  setTimeout(() => {
+    const el = document.querySelector(`#sc-${id} .savings-name-input`);
+    if(el){ el.focus(); el.select(); }
+  }, 50);
 }
 
 function renderSavings(){
@@ -636,13 +641,21 @@ function renderSavings(){
   grid.innerHTML = state.savings.map(s => `
     <div class="savings-card" id="sc-${s.id}">
       <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px;">
-        <div>
-          <select style="background:transparent;border:none;font-weight:700;font-size:13px;color:var(--text);padding:0;margin-bottom:4px;cursor:pointer;" onchange="updateSavings(${s.id},'type',this.value)">
+        <div style="flex:1;min-width:0;">
+          <select style="background:transparent;border:none;font-weight:700;font-size:13px;color:var(--text);padding:0;margin-bottom:6px;cursor:pointer;width:100%;" onchange="updateSavings(${s.id},'type',this.value)">
             ${ACCOUNT_TYPES.map(t=>`<option value="${t}" ${s.type===t?'selected':''}>${t}</option>`).join('')}
           </select>
-          <div><input style="background:transparent;border:none;border-bottom:1px dashed var(--border);font-size:12px;color:var(--muted);padding:2px 0;width:100%;max-width:140px;" value="${s.name}" placeholder="계좌명" oninput="updateSavings(${s.id},'name',this.value)"></div>
+          <div style="position:relative;">
+            <input class="savings-name-input"
+              style="background:var(--surface2);border:1px solid var(--border);border-radius:2px;font-size:13px;font-weight:600;color:var(--text);padding:5px 8px;width:100%;transition:border-color .15s;"
+              value="${s.name}" placeholder="계좌명 입력"
+              oninput="updateSavings(${s.id},'name',this.value)"
+              onfocus="this.style.borderColor='var(--accent)'"
+              onblur="this.style.borderColor='var(--border)'">
+            <span style="position:absolute;right:6px;top:50%;transform:translateY(-50%);font-size:10px;color:var(--muted);pointer-events:none;">✎</span>
+          </div>
         </div>
-        <button class="btn btn-danger" onclick="removeSavings(${s.id})">✕</button>
+        <button class="btn btn-danger" style="margin-left:8px;flex-shrink:0;" onclick="removeSavings(${s.id})">✕</button>
       </div>
       <div class="type-badge">월 저축</div>
       <div style="display:flex;align-items:center;gap:4px;">
@@ -674,10 +687,41 @@ function removeSavings(id){
 }
 
 // ─────────────── PORTFOLIO ───────────────
+// Fixed accounts always displayed (not deletable)
+const FIXED_PORTFOLIO_TYPES = ['ISA','CMA','연금저축1','IRP'];
+
+function ensureFixedPortfolios(){
+  FIXED_PORTFOLIO_TYPES.forEach(type => {
+    const exists = state.portfolios.find(p => p.fixed && p.type === type);
+    if(!exists){
+      state.portfolios.unshift({
+        id: uid(),
+        accountName: type + ' 포트폴리오',
+        type,
+        fixed: true,
+        stocks: []
+      });
+    }
+  });
+  // Keep fixed accounts in order at top
+  state.portfolios.sort((a,b) => {
+    const ai = FIXED_PORTFOLIO_TYPES.indexOf(a.fixed ? a.type : '__');
+    const bi = FIXED_PORTFOLIO_TYPES.indexOf(b.fixed ? b.type : '__');
+    if(ai === -1 && bi === -1) return 0;
+    if(ai === -1) return 1;
+    if(bi === -1) return -1;
+    return ai - bi;
+  });
+}
+
 function addPortfolioAccount(){
   const id = uid();
-  state.portfolios.push({id, accountName:'새 계좌', type:'ISA', stocks:[]});
+  state.portfolios.push({id, accountName:'새 계좌', type:'ISA', fixed:false, stocks:[]});
   renderPortfolios();
+  setTimeout(() => {
+    const el = document.querySelector(`#ph-${id} .portfolio-name-input`);
+    if(el){ el.focus(); el.select(); }
+  }, 50);
 }
 
 function addStock(portfolioId){
@@ -696,6 +740,8 @@ function removeStock(portfolioId, stockId){
 }
 
 function removePortfolio(id){
+  const p = state.portfolios.find(x=>x.id===id);
+  if(p && p.fixed){ showToast('⚠️ 기본 계좌는 삭제할 수 없습니다'); return; }
   state.portfolios = state.portfolios.filter(x=>x.id!==id);
   renderPortfolios();
   recalcAll();
@@ -714,17 +760,14 @@ function updateStock(pid, sid, field, value){
 function toggleAccount(id){
   const body = document.getElementById(`pb-${id}`);
   const chev = document.getElementById(`chev-${id}`);
+  if(!body) return;
   body.classList.toggle('collapsed');
   chev.classList.toggle('open');
 }
 
 function renderPortfolios(){
+  ensureFixedPortfolios();
   const sec = document.getElementById('portfolio-section');
-  if(!state.portfolios.length){
-    sec.innerHTML = '<div style="color:var(--muted);font-size:12px;font-family:var(--mono);padding:8px 0 24px;">아직 포트폴리오 계좌가 없습니다</div>';
-    recalcAll();
-    return;
-  }
   sec.innerHTML = state.portfolios.map(p => {
     const totCost = p.stocks.reduce((a,s)=> a + s.qty*s.avgPrice, 0);
     const totVal  = p.stocks.reduce((a,s)=> a + s.qty*s.curPrice, 0);
@@ -732,15 +775,43 @@ function renderPortfolios(){
     const pnlRate = totCost ? (totPnl/totCost*100).toFixed(2) : 0;
     const pnlClass = totPnl >= 0 ? 'pos' : 'neg';
     const pnlSign  = totPnl >= 0 ? '+' : '';
+    const isFixed  = !!p.fixed;
+
+    // Fixed accounts: always open (no collapse), name editable
+    const nameEl = isFixed
+      ? `<span class="account-badge" style="background:var(--accent-dim);color:var(--accent);border:1px solid rgba(0,230,118,0.3);">${p.type}</span>
+         <input class="portfolio-name-input"
+           style="background:transparent;border:none;border-bottom:1px dashed rgba(0,230,118,0.3);color:var(--text);font-weight:700;font-size:14px;padding:2px 6px;min-width:120px;transition:border-color .15s;"
+           value="${p.accountName}" onclick="event.stopPropagation()"
+           oninput="updatePortfolioName(${p.id},this.value)"
+           onfocus="this.style.borderColor='var(--accent)'"
+           onblur="this.style.borderColor='rgba(0,230,118,0.3)'">`
+      : `<span class="account-badge">${p.type}</span>
+         <input class="portfolio-name-input"
+           style="background:transparent;border:none;border-bottom:1px dashed var(--border);color:var(--text);font-weight:700;font-size:14px;padding:2px 6px;min-width:120px;transition:border-color .15s;"
+           value="${p.accountName}" onclick="event.stopPropagation()"
+           oninput="updatePortfolioName(${p.id},this.value)"
+           onfocus="this.style.borderColor='var(--accent)'"
+           onblur="this.style.borderColor='var(--border)'">`;
+
+    const headerClickAttr = isFixed ? '' : `onclick="toggleAccount(${p.id})"`;
+    const chevEl = isFixed
+      ? '' // fixed: no chevron, always open
+      : `<span class="chevron open" id="chev-${p.id}">▾</span>`;
+    const deleteBtn = isFixed
+      ? `<span style="font-size:10px;font-family:var(--mono);color:var(--text3);padding:4px 8px;opacity:0.5;" title="기본 계좌">고정</span>`
+      : `<button class="btn btn-danger" onclick="event.stopPropagation();removePortfolio(${p.id})" style="padding:4px 8px;">✕</button>`;
+    const typeSelect = isFixed
+      ? '' // fixed accounts don't need type selector
+      : `<select style="font-family:var(--mono);font-size:11px;background:var(--surface2);border:1px solid var(--border);color:var(--text2);padding:3px 6px;border-radius:2px;cursor:pointer;"
+           onclick="event.stopPropagation()" onchange="updatePortfolioType(${p.id},this.value)">
+           ${ACCOUNT_TYPES.map(t=>`<option value="${t}" ${p.type===t?'selected':''}>${t}</option>`).join('')}
+         </select>`;
 
     return `
-    <div class="account-panel">
-      <div class="account-header" onclick="toggleAccount(${p.id})">
-        <div class="account-header-left">
-          <span class="account-badge">${p.type}</span>
-          <input class="account-name" style="background:transparent;border:none;border-bottom:1px dashed var(--border);color:var(--text);font-weight:700;font-size:14px;padding:2px 4px;cursor:text;" 
-            value="${p.accountName}" onclick="event.stopPropagation()" oninput="updatePortfolioName(${p.id},this.value)">
-        </div>
+    <div class="account-panel" id="ph-${p.id}" style="${isFixed ? 'border-color:rgba(0,230,118,0.15);' : ''}">
+      <div class="account-header" ${headerClickAttr} style="${isFixed ? 'cursor:default;' : ''}">
+        <div class="account-header-left">${nameEl}</div>
         <div class="account-header-right">
           <div class="account-stat">
             <div class="label">평가금액</div>
@@ -754,33 +825,23 @@ function renderPortfolios(){
             <div class="label">종목 수</div>
             <div class="val">${p.stocks.length}종목</div>
           </div>
-          <select style="font-family:var(--mono);font-size:11px;background:var(--surface2);border:1px solid var(--border);color:var(--text2);padding:3px 6px;border-radius:2px;cursor:pointer;"
-            onclick="event.stopPropagation()" onchange="updatePortfolioType(${p.id},this.value)">
-            ${ACCOUNT_TYPES.map(t=>`<option value="${t}" ${p.type===t?'selected':''}>${t}</option>`).join('')}
-          </select>
-          <button class="btn btn-danger" onclick="event.stopPropagation();removePortfolio(${p.id})" style="padding:4px 8px;">✕</button>
-          <span class="chevron open" id="chev-${p.id}">▾</span>
+          ${typeSelect}
+          ${deleteBtn}
+          ${chevEl}
         </div>
       </div>
       <div class="account-body" id="pb-${p.id}">
         <table>
           <thead>
             <tr>
-              <th>종목명</th>
-              <th>수량</th>
-              <th>평단가</th>
-              <th>현재가</th>
-              <th>평가금액</th>
-              <th>수익금</th>
-              <th>수익률</th>
-              <th>배당률 (%)</th>
-              <th>월 매수금</th>
-              <th></th>
+              <th>종목명</th><th>수량</th><th>평단가</th><th>현재가</th>
+              <th>평가금액</th><th>수익금</th><th>수익률</th>
+              <th>배당률 (%)</th><th>월 매수금</th><th></th>
             </tr>
           </thead>
           <tbody>
             ${p.stocks.length === 0
-              ? `<tr class="empty-row"><td colspan="10">종목이 없습니다</td></tr>`
+              ? `<tr class="empty-row"><td colspan="10">종목이 없습니다 — 아래 버튼으로 추가하세요</td></tr>`
               : p.stocks.map(s => {
                   const val  = s.qty * s.curPrice;
                   const cost = s.qty * s.avgPrice;
