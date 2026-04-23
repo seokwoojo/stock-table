@@ -86,6 +86,7 @@ function saveToStorage(){
     savings:   state.savings,
     portfolios:state.portfolios,
     maturity:  state.maturity,
+    gasUrl:    state.gasUrl,
     idCnt,
   };
   try { localStorage.setItem(LS_KEY, JSON.stringify(data)); } catch(e){}
@@ -102,6 +103,7 @@ function loadFromStorage(){
     if(data.savings)    state.savings    = data.savings;
     if(data.portfolios) state.portfolios = data.portfolios;
     if(data.maturity)   state.maturity   = data.maturity;
+    if(data.gasUrl)     state.gasUrl     = data.gasUrl;
     if(data.idCnt)      idCnt = data.idCnt;
     return true;
   } catch(e){ return false; }
@@ -249,3 +251,5 @@ if(!loaded){
 }
 
 renderAll();
+
+startPriceAutoUpdate(); // 오후 3:30 자동 현재가 갱신 시작

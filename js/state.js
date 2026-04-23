@@ -1,8 +1,9 @@
 // ─────────────── STATE ───────────────
 const state = {
-  savings: [],        // { id, type, name, monthlyAmt, totalPrincipal, currentAmt, maturityDate }
-  portfolios: [],     // { id, accountName, type, stocks: [{id, name, qty, avgPrice, curPrice, dividend, monthlyBuy}] }
-  maturity: [],       // { id, name, type, principal, rate, startDate, endDate }
+  savings: [],
+  portfolios: [],  // stocks: [{id, code, name, baseQty, baseAvgPrice, curPrice, ...}]
+  maturity: [],
+  gasUrl: '',      // Google Apps Script 배포 URL
 };
 
 // Account types

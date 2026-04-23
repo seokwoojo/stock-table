@@ -44,7 +44,7 @@ function ensureFixedPortfolios(){
 function addStock(portfolioId){
   const p = state.portfolios.find(x=>x.id===portfolioId);
   if(!p) return;
-  p.stocks.push({ id:uid(), name:'', baseQty:0, baseAvgPrice:0,
+  p.stocks.push({ id:uid(), code:'', name:'', baseQty:0, baseAvgPrice:0,
     curPrice:0, dividend:0, dividendCycle:'연', dividendDate:'',
     accumulatedDividend:0, monthlyBuy:0, trades:[] });
   renderPortfolios();
@@ -423,7 +423,19 @@ function renderPortfolios(){
 
           return `
           <tr class="stock-row" data-sid="${s.id}">
-            <td>${mkText(s.name, `updateStock(${p.id},${s.id},'name',v)`, 'placeholder="종목명"')}</td>
+            <td>
+              <div style="display:flex;flex-direction:column;gap:3px;">
+                <div style="display:flex;gap:4px;align-items:center;">
+                  <input type="text" placeholder="종목코드" value="${s.code||''}"
+                    style="max-width:72px;font-family:var(--mono);font-size:11px;text-align:center;letter-spacing:1px;"
+                    data-cb="updateStock(${p.id},${s.id},'code',v)"
+                    oninput="nInputText(this)" onblur="nBlurText(this)">
+                  <button onclick="lookupStock(${p.id},${s.id})"
+                    style="font-family:var(--mono);font-size:10px;padding:2px 6px;background:var(--accent-dim);border:1px solid rgba(0,230,118,0.3);color:var(--accent);border-radius:2px;cursor:pointer;white-space:nowrap;">조회</button>
+                </div>
+                ${mkText(s.name, `updateStock(${p.id},${s.id},'name',v)`, 'placeholder="종목명"')}
+              </div>
+            </td>
             <td class="mono" style="color:var(--text2);font-weight:600;">${qty.toLocaleString()}</td>
             <td class="mono" style="color:var(--text2);">${avgPrice?fmtKRW(avgPrice):'—'}</td>
             <td>${mkNum(s.curPrice, `updateStock(${p.id},${s.id},'curPrice',v)`, '', '0')}</td>
@@ -511,6 +523,83 @@ function renderPortfolios(){
     </div>`;
   }).join('');
   recalcAll();
+}
+
+// ─────────────── 주가 조회 (Google Apps Script) ───────────────
+
+// 단일 종목 코드 조회 → 종목명 + 현재가 자동 입력
+async function lookupStock(pid, sid){
+  const p = state.portfolios.find(x=>x.id===pid);
+  if(!p) return;
+  const s = p.stocks.find(x=>x.id===sid);
+  if(!s) return;
+  if(!state.gasUrl){ showToast('⚠️ 설정에서 Google Apps Script URL을 먼저 입력하세요'); return; }
+  if(!s.code){ showToast('⚠️ 종목 코드를 입력하세요'); return; }
+
+  showToast('🔍 조회 중...');
+  try {
+    const res  = await fetch(`${state.gasUrl}?code=${s.code.trim()}`);
+    const data = await res.json();
+    if(data.error){ showToast('❌ ' + data.error); return; }
+    s.name     = data.name  || s.name;
+    s.curPrice = Number(data.price) || s.curPrice;
+    renderPortfolios();
+    renderSavings();
+    recalcAll();
+    scheduleSave();
+    showToast(`✅ ${data.name} ₩${Number(data.price).toLocaleString('ko-KR')}`);
+  } catch(e) {
+    showToast('❌ 조회 실패: ' + e.message);
+  }
+}
+
+// 전체 종목 현재가 일괄 갱신
+async function refreshAllPrices(){
+  if(!state.gasUrl){ showToast('⚠️ 설정에서 Google Apps Script URL을 먼저 입력하세요'); return; }
+  const allStocks = state.portfolios.flatMap(p => p.stocks.filter(s => s.code));
+  if(!allStocks.length){ showToast('⚠️ 종목 코드가 입력된 종목이 없습니다'); return; }
+
+  const codes = [...new Set(allStocks.map(s=>s.code.trim()))].join(',');
+  showToast('🔄 전체 시세 업데이트 중...');
+  try {
+    const res  = await fetch(`${state.gasUrl}?codes=${codes}`);
+    const data = await res.json();
+    let updated = 0;
+    state.portfolios.forEach(p => {
+      p.stocks.forEach(s => {
+        if(!s.code) return;
+        const info = data[s.code.trim()];
+        if(info && !info.error){
+          if(info.name)  s.name     = info.name;
+          if(info.price) s.curPrice = Number(info.price);
+          updated++;
+        }
+      });
+    });
+    renderPortfolios();
+    renderSavings();
+    recalcAll();
+    scheduleSave();
+    showToast(`✅ ${updated}개 종목 시세 업데이트 완료`);
+  } catch(e) {
+    showToast('❌ 업데이트 실패: ' + e.message);
+  }
+}
+
+// 오후 3:30 자동 갱신 체크 (매분 체크, 3:30에만 실행)
+function startPriceAutoUpdate(){
+  setInterval(() => {
+    const now = new Date();
+    if(now.getHours()===15 && now.getMinutes()===30){
+      refreshAllPrices();
+    }
+  }, 60000); // 1분마다 체크
+}
+
+function setGasUrl(url){
+  state.gasUrl = url.trim();
+  scheduleSave();
+  showToast('✅ URL 저장됨');
 }
 
 function addDividend(pid, sid){
