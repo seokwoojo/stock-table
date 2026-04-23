@@ -602,12 +602,6 @@ async function refreshAllPrices(){
   }
 }
 
-function setGasUrl(url){
-  state.gasUrl = url.trim();
-  scheduleSave();
-  showToast('✅ URL 저장됨');
-}
-
 function addDividend(pid, sid){
   const p = state.portfolios.find(x=>x.id===pid);
   if(!p) return;

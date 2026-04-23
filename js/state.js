@@ -3,7 +3,7 @@ const state = {
   savings: [],
   portfolios: [],
   maturity: [],
-  gasUrl: '',
+  gasUrl: 'https://script.google.com/macros/s/AKfycbyAOd0dOOl_NFaxVeX3NLdc5V0PSTo7p2LYxAJbHBfAZ2g21vCzvyYQkhYCg6fKrMg/exec',
 };
 
 // 계좌 타입

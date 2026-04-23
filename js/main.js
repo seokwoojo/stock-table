@@ -78,13 +78,7 @@ function recalcAll(){
 // ─────────────── LOCAL STORAGE ───────────────
 const LS_KEY = 'investment_dashboard_v2';
 
-function syncGasUrl(){
-  const el = document.getElementById('gas-url-input');
-  if(el && el.value.trim()) state.gasUrl = el.value.trim();
-}
-
 function saveToStorage(){
-  syncGasUrl();
   const data = {
     salary:    document.getElementById('salary').value,
     baseMonth: document.getElementById('baseMonth').value,
@@ -136,7 +130,6 @@ function scheduleSave(){
 
 // ─────────────── EXPORT / IMPORT ───────────────
 function exportJSON(){
-  syncGasUrl();
   const data = {
     exportedAt: new Date().toISOString(),
     salary:    document.getElementById('salary').value,
@@ -259,11 +252,7 @@ if(!loaded){
 
 renderAll();
 
-// GAS URL input에 저장된 값 반영
-const gasEl = document.getElementById('gas-url-input');
-if(gasEl && state.gasUrl) gasEl.value = state.gasUrl;
-
-// 대시보드 시작 시 시세 1회 자동 갱신 (GAS URL 있을 때만)
+// 대시보드 시작 시 시세 1회 자동 갱신
 if(state.gasUrl) {
   setTimeout(() => refreshAllPrices(), 1500);
 }

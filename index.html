@@ -22,11 +22,7 @@
         <span id="today-time"></span>
       </div>
       <!-- 주가 API 설정 -->
-      <div style="display:flex;align-items:center;gap:6px;">
-        <input type="text" id="gas-url-input" placeholder="Google Apps Script URL"
-          style="width:220px;font-size:11px;padding:6px 10px;font-family:var(--mono);">
-        <button class="btn btn-ghost" style="font-size:10px;padding:6px 10px;white-space:nowrap;" onclick="refreshAllPrices()">🔄 시세갱신</button>
-      </div>
+      <button class="btn btn-ghost" style="font-size:10px;padding:6px 10px;white-space:nowrap;" onclick="refreshAllPrices()">🔄 시세갱신</button>
       <button class="btn btn-ghost" onclick="exportJSON()">📥 내보내기</button>
       <button class="btn btn-ghost" onclick="importJSON()">📤 불러오기</button>
       <button class="btn btn-primary" onclick="saveToStorage()">💾 저장</button>
