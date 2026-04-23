@@ -638,7 +638,17 @@ function updateMaturityMonthly(id, value){
 
 function updatePortfolioBroker(id, val){
   const p = state.portfolios.find(x=>x.id===id);
-  if(p){ p.broker = val; scheduleSave(); }
+  if(!p) return;
+  p.broker = val;
+  // 저축 카드에도 동기화
+  const s = state.savings.find(x=>x.id===id);
+  if(s){
+    s.broker = val;
+    // 저축 카드 증권사 선택 DOM 직접 업데이트
+    const sel = document.querySelector(`#sc-${id} select`);
+    if(sel) sel.value = val;
+  }
+  scheduleSave();
 }
 
 function updatePortfolioName(id, val){
@@ -655,6 +665,8 @@ function updatePortfolioType(id, val){
   const p = state.portfolios.find(x=>x.id===id);
   if(!p || p.fixed) return;
   p.type = val || p.type;
-  if(!p.fixed){ const s=state.savings.find(x=>x.id===id); if(s){ s.type=val; } }
+  const s = state.savings.find(x=>x.id===id);
+  if(s) s.type = val;
+  renderSavings(); // 타입 라벨 반영
   scheduleSave();
 }

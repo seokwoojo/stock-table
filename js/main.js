@@ -5,29 +5,28 @@ function recalcAll(){
   // Monthly savings total
   const monthSave = state.savings.reduce((a,s)=>a+s.monthlyAmt,0);
 
-  // 계좌별 현재 금액 / 원금 계산 (적금은 만기 데이터 기반)
+  // 계좌별 현재 금액 / 원금 계산 — id로 포트폴리오 매칭 (타입 이름 변경에도 대응)
   function getSavingValues(s){
-    if(s.type === '적금'){
-      const m = state.maturity.find(x=>x.id===s.id);
-      if(m && m.startDate && s.monthlyAmt > 0){
-        const start = new Date(m.startDate);
-        const now   = new Date();
-        const elapsed = Math.max(0,
-          (now.getFullYear()-start.getFullYear())*12 + (now.getMonth()-start.getMonth())
-        );
-        const payCount = elapsed + 1;
-        const principal = payCount * s.monthlyAmt;
-        const interest  = s.monthlyAmt * (payCount*(payCount+1)/2) * ((m.rate||0)/100/12);
-        return { principal, current: Math.round(principal + interest) };
-      }
-      return { principal: 0, current: 0 };
+    // 연결된 포트폴리오가 있으면 포트폴리오 기준으로 계산
+    const linkedPortfolio = state.portfolios.find(p => p.id === s.id);
+    if(linkedPortfolio){
+      const p = linkedPortfolio;
+      const principal = p.stocks.reduce((a,st)=>{ const pos=calcPosition(st); return a+pos.qty*pos.avgPrice; },0);
+      const val  = p.stocks.reduce((a,st)=>{ const pos=calcPosition(st); return a+pos.qty*st.curPrice; },0);
+      const real = p.stocks.reduce((a,st)=>{ const pos=calcPosition(st); return a+pos.realizedPnl; },0);
+      const div  = p.stocks.reduce((a,st)=>a+(st.accumulatedDividend||0),0);
+      return { principal, current: val + real + div };
     }
-    const PORTFOLIO_TYPES = ['ISA','CMA','과세 연금저축','비과세 연금저축','IRP'];
-    if(PORTFOLIO_TYPES.includes(s.type)){
-      const portPrincipal = state.portfolios.filter(p=>p.type===s.type).reduce((a,p)=>a+p.stocks.reduce((b,st)=>b+st.qty*st.avgPrice,0),0);
-      const portVal       = state.portfolios.filter(p=>p.type===s.type).reduce((a,p)=>a+p.stocks.reduce((b,st)=>b+st.qty*st.curPrice,0),0);
-      const portDiv       = state.portfolios.filter(p=>p.type===s.type).reduce((a,p)=>a+p.stocks.reduce((b,st)=>b+(st.accumulatedDividend||0),0),0);
-      return { principal: portPrincipal, current: portVal + portDiv };
+    // 적금: 만기 데이터 기반
+    const m = state.maturity.find(x=>x.id===s.id);
+    if(m && m.startDate && s.monthlyAmt > 0){
+      const start = new Date(m.startDate);
+      const now   = new Date();
+      const elapsed  = Math.max(0,(now.getFullYear()-start.getFullYear())*12+(now.getMonth()-start.getMonth()));
+      const payCount = elapsed + 1;
+      const principal = payCount * s.monthlyAmt;
+      const interest  = s.monthlyAmt*(payCount*(payCount+1)/2)*((m.rate||0)/100/12);
+      return { principal, current: Math.round(principal + interest) };
     }
     return { principal: s.totalPrincipal||0, current: s.currentAmt||0 };
   }

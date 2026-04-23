@@ -42,12 +42,20 @@ function updateSavings(id, field, value){
     const m = state.maturity.find(x=>x.id===id);
     if(m){
       m.name = value;
-      // 만기 일정 이름도 DOM 직접 업데이트 (리렌더 없이)
       const matInput = document.querySelector(`#mat-name-${id}`);
       if(matInput) matInput.value = value;
     }
   }
-  // 월 저축 변경 시 만기 테이블 총 납입금/만기금액도 갱신
+  // 증권사 변경 시 포트폴리오에도 동기화
+  if(field === 'broker'){
+    const p = state.portfolios.find(x=>x.id===id);
+    if(p){
+      p.broker = value;
+      // 포트폴리오 헤더 증권사 선택 DOM 직접 업데이트
+      const sel = document.querySelector(`#ph-${id} .account-header select`);
+      if(sel) sel.value = value;
+    }
+  }
   if(field === 'monthlyAmt' && s.type === '적금'){
     renderMaturity();
   }
