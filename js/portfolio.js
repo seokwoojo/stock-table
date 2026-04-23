@@ -25,6 +25,11 @@ function calcPosition(s){
 const FIXED_PORTFOLIO_TYPES = ['ISA','CMA','과세 연금저축','비과세 연금저축','IRP'];
 
 function ensureFixedPortfolios(){
+  // 구버전 띄어쓰기 없는 항목 제거 (마이그레이션)
+  state.portfolios = state.portfolios.filter(p =>
+    p.type !== '과세연금저축' && p.type !== '비과세연금저축'
+  );
+
   FIXED_PORTFOLIO_TYPES.forEach(type => {
     const exists = state.portfolios.find(p => p.fixed && p.type === type);
     if(!exists){
@@ -61,15 +66,23 @@ function removeStock(portfolioId, stockId){
 
 function addPortfolioAccount(){
   const id = uid();
-  const type = 'ISA';
+  const type = '계좌';
   const name = type + ' 포트폴리오';
   state.portfolios.push({id, accountName:name, type, fixed:false, stocks:[]});
   state.savings.push({id, type, name, monthlyAmt:0, totalPrincipal:0, currentAmt:0, maturityDate:''});
   renderAll();
+  // 추가 후 배지에 포커스 + 전체 선택
   setTimeout(() => {
-    const el = document.querySelector(`#ph-${id} .portfolio-name-input`);
-    if(el){ el.focus(); el.select(); }
-  }, 50);
+    const el = document.querySelector(`#ph-${id} [contenteditable]`);
+    if(el){
+      el.focus();
+      const r = document.createRange();
+      r.selectNodeContents(el);
+      const s = window.getSelection();
+      s.removeAllRanges();
+      s.addRange(r);
+    }
+  }, 80);
   scheduleSave();
 }
 
@@ -375,18 +388,26 @@ function renderPortfolios(){
     const totRate   = totCost ? (totTotal/totCost*100).toFixed(2)  : 0;
     const isFixed   = !!p.fixed;
 
+    // 배지 라벨 줄바꿈 처리
+    const badgeLabel = p.type
+      .replace('과세 연금저축', '과세<br>연금저축')
+      .replace('비과세 연금저축', '비과세<br>연금저축');
+
     const nameEl = isFixed
-      ? `<span class="account-badge" style="background:var(--accent-dim);color:var(--accent);border:1px solid rgba(0,230,118,0.3);">${p.type}</span>
-         <input class="portfolio-name-input" style="background:transparent;border:none;border-bottom:1px dashed rgba(0,230,118,0.3);color:var(--text);font-weight:700;font-size:14px;padding:2px 6px;min-width:120px;"
-           value="${p.accountName}" onclick="event.stopPropagation()"
-           data-cb="${`updatePortfolioName(${p.id},v)`.replace(/"/g,'&quot;')}"
-           oninput="nInputText(this)" onblur="nBlurText(this)" onfocus="this.style.borderColor='var(--accent)'">`
-      : `<span class="account-badge">${p.type}</span>
-         <input class="portfolio-name-input" style="background:transparent;border:none;border-bottom:1px dashed var(--border);color:var(--text);font-weight:700;font-size:14px;padding:2px 6px;min-width:120px;"
-           value="${p.accountName}" onclick="event.stopPropagation()"
-           data-cb="${`updatePortfolioName(${p.id},v)`.replace(/"/g,'&quot;')}"
-           oninput="nInputText(this)" onblur="nBlurText(this)" onfocus="this.style.borderColor='var(--accent)'">
-         <select style="font-family:var(--mono);font-size:11px;background:var(--surface2);border:1px solid var(--border);color:var(--text2);padding:3px 6px;border-radius:2px;cursor:pointer;margin-left:4px;"
+      ? `<span class="account-badge" style="background:var(--accent-dim);color:var(--accent);border:1px solid rgba(0,230,118,0.3);line-height:1.3;text-align:center;">${badgeLabel}</span>
+         <select style="font-family:var(--mono);font-size:11px;background:var(--surface2);border:1px solid var(--border);color:var(--text2);padding:3px 6px;border-radius:2px;cursor:pointer;margin-left:6px;"
+           onclick="event.stopPropagation()" onchange="updatePortfolioBroker(${p.id},this.value)">
+           ${BROKERS.map(b=>`<option value="${b}" ${(p.broker||'증권사 선택')===b?'selected':''}>${b}</option>`).join('')}
+         </select>`
+      : `<span contenteditable="true" spellcheck="false"
+           class="account-badge"
+           style="background:var(--surface2);color:var(--text2);border:1px solid var(--border);line-height:1.3;text-align:center;min-width:40px;cursor:text;outline:none;"
+           onclick="event.stopPropagation()"
+           onblur="updatePortfolioType(${p.id},this.innerText.trim())"
+           onfocus="this.style.borderColor='var(--accent)';event.stopPropagation()"
+           onkeydown="if(event.key==='Enter'){event.preventDefault();this.blur();}"
+           >${p.type}</span>
+         <select style="font-family:var(--mono);font-size:11px;background:var(--surface2);border:1px solid var(--border);color:var(--text2);padding:3px 6px;border-radius:2px;cursor:pointer;margin-left:6px;"
            onclick="event.stopPropagation()" onchange="updatePortfolioBroker(${p.id},this.value)">
            ${BROKERS.map(b=>`<option value="${b}" ${(p.broker||'증권사 선택')===b?'selected':''}>${b}</option>`).join('')}
          </select>`;
@@ -585,16 +606,6 @@ async function refreshAllPrices(){
   }
 }
 
-// 오후 3:30 자동 갱신 체크 (매분 체크, 3:30에만 실행)
-function startPriceAutoUpdate(){
-  setInterval(() => {
-    const now = new Date();
-    if(now.getHours()===15 && now.getMinutes()===30){
-      refreshAllPrices();
-    }
-  }, 60000); // 1분마다 체크
-}
-
 function setGasUrl(url){
   state.gasUrl = url.trim();
   scheduleSave();
@@ -646,12 +657,8 @@ function updatePortfolioName(id, val){
 
 function updatePortfolioType(id, val){
   const p = state.portfolios.find(x=>x.id===id);
-  if(!p) return;
-  p.type = val;
-  const defaultNames = ['ISA','CMA','과세 연금저축','비과세 연금저축','IRP','적금','기타','새 계좌'];
-  if(defaultNames.some(n=>p.accountName===n||p.accountName===n+' 포트폴리오'||p.accountName==='새 계좌')){
-    p.accountName = val+' 포트폴리오';
-  }
-  if(!p.fixed){ const s=state.savings.find(x=>x.id===id); if(s){ s.type=val; s.name=p.accountName; } }
-  renderPortfolios(); renderSavings(); scheduleSave();
+  if(!p || p.fixed) return;
+  p.type = val || p.type;
+  if(!p.fixed){ const s=state.savings.find(x=>x.id===id); if(s){ s.type=val; } }
+  scheduleSave();
 }

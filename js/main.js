@@ -259,8 +259,12 @@ if(!loaded){
 }
 
 renderAll();
-startPriceAutoUpdate();
 
 // GAS URL input에 저장된 값 반영
 const gasEl = document.getElementById('gas-url-input');
 if(gasEl && state.gasUrl) gasEl.value = state.gasUrl;
+
+// 대시보드 시작 시 시세 1회 자동 갱신 (GAS URL 있을 때만)
+if(state.gasUrl) {
+  setTimeout(() => refreshAllPrices(), 1500);
+}
