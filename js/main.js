@@ -11,8 +11,17 @@ function recalcAll(){
     const linkedPortfolio = state.portfolios.find(p => p.id === s.id);
     if(linkedPortfolio){
       const p = linkedPortfolio;
-      const principal = p.stocks.reduce((a,st)=>{ const pos=calcPosition(st); return a+pos.qty*pos.avgPrice; },0);
-      const val  = p.stocks.reduce((a,st)=>{ const pos=calcPosition(st); return a+pos.qty*st.curPrice; },0);
+      const principal = p.stocks.reduce((a,st)=>{
+        const pos = calcPosition(st);
+        const qty      = pos.qty      || st.qty      || 0;
+        const avgPrice = pos.avgPrice || st.avgPrice || 0;
+        return a + qty * avgPrice;
+      }, 0);
+      const val  = p.stocks.reduce((a,st)=>{
+        const pos = calcPosition(st);
+        const qty = pos.qty || st.qty || 0;
+        return a + qty * st.curPrice;
+      }, 0);
       const real = p.stocks.reduce((a,st)=>{ const pos=calcPosition(st); return a+pos.realizedPnl; },0);
       const div  = p.stocks.reduce((a,st)=>a+(st.accumulatedDividend||0),0);
       return { principal, current: val + real + div };

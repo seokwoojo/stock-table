@@ -57,8 +57,18 @@ function renderSavings(){
     let principal = 0, current = 0;
     if(isStock){
       const p = linkedPortfolio;
-      principal = p.stocks.reduce((a,st)=>{ const pos=calcPosition(st); return a+pos.qty*pos.avgPrice; },0);
-      const val  = p.stocks.reduce((a,st)=>{ const pos=calcPosition(st); return a+pos.qty*st.curPrice; },0);
+      principal = p.stocks.reduce((a,st)=>{
+        const pos = calcPosition(st);
+        // baseQty나 trades가 있으면 calcPosition, 없으면 직접 입력값 사용
+        const qty      = pos.qty      || st.qty      || 0;
+        const avgPrice = pos.avgPrice || st.avgPrice || 0;
+        return a + qty * avgPrice;
+      }, 0);
+      const val  = p.stocks.reduce((a,st)=>{
+        const pos = calcPosition(st);
+        const qty = pos.qty || st.qty || 0;
+        return a + qty * st.curPrice;
+      }, 0);
       const real = p.stocks.reduce((a,st)=>{ const pos=calcPosition(st); return a+pos.realizedPnl; },0);
       const div  = p.stocks.reduce((a,st)=>a+(st.accumulatedDividend||0),0);
       current = val + real + div;

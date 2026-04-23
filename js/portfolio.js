@@ -115,8 +115,8 @@ function updateStock(pid, sid, field, value){
 
 function updateStockCells(p, s){
   const pos      = calcPosition(s);
-  const qty      = pos.qty;
-  const avgPrice = pos.avgPrice;
+  const qty      = pos.qty      || s.qty      || 0;
+  const avgPrice = pos.avgPrice || s.avgPrice || 0;
   const realPnl  = pos.realizedPnl;
   const val      = qty * s.curPrice;
   const cost     = qty * avgPrice;
@@ -151,8 +151,8 @@ function updateStockCells(p, s){
 function updatePortfolioHeader(p){
   const panel = document.getElementById(`ph-${p.id}`);
   if(!panel) return;
-  const totCost   = p.stocks.reduce((a,s)=>{ const pos=calcPosition(s); return a+pos.qty*pos.avgPrice; },0);
-  const totVal    = p.stocks.reduce((a,s)=>{ const pos=calcPosition(s); return a+pos.qty*s.curPrice; },0);
+  const totCost   = p.stocks.reduce((a,s)=>{ const pos=calcPosition(s); const q=pos.qty||s.qty||0; const ap=pos.avgPrice||s.avgPrice||0; return a+q*ap; },0);
+  const totVal    = p.stocks.reduce((a,s)=>{ const pos=calcPosition(s); const q=pos.qty||s.qty||0; return a+q*s.curPrice; },0);
   const totReal   = p.stocks.reduce((a,s)=>{ const pos=calcPosition(s); return a+pos.realizedPnl; },0);
   const totDiv    = p.stocks.reduce((a,s)=>a+(s.accumulatedDividend||0),0);
   const totUnreal = totVal - totCost;
@@ -378,8 +378,8 @@ function renderPortfolios(){
   ensureFixedPortfolios();
   const sec = document.getElementById('portfolio-section');
   sec.innerHTML = state.portfolios.map(p => {
-    const totCost   = p.stocks.reduce((a,s)=>{ const pos=calcPosition(s); return a+pos.qty*pos.avgPrice; },0);
-    const totVal    = p.stocks.reduce((a,s)=>{ const pos=calcPosition(s); return a+pos.qty*s.curPrice; },0);
+    const totCost   = p.stocks.reduce((a,s)=>{ const pos=calcPosition(s); const q=pos.qty||s.qty||0; const ap=pos.avgPrice||s.avgPrice||0; return a+q*ap; },0);
+    const totVal    = p.stocks.reduce((a,s)=>{ const pos=calcPosition(s); const q=pos.qty||s.qty||0; return a+q*s.curPrice; },0);
     const totReal   = p.stocks.reduce((a,s)=>{ const pos=calcPosition(s); return a+pos.realizedPnl; },0);
     const totDiv    = p.stocks.reduce((a,s)=>a+(s.accumulatedDividend||0),0);
     const totUnreal = totVal - totCost;
@@ -418,8 +418,8 @@ function renderPortfolios(){
       ? `<tr class="empty-row"><td colspan="16">종목이 없습니다 — 아래 버튼으로 추가하세요</td></tr>`
       : p.stocks.map(s => {
           const pos      = calcPosition(s);
-          const qty      = pos.qty;
-          const avgPrice = pos.avgPrice;
+          const qty      = pos.qty      || s.qty      || 0;
+          const avgPrice = pos.avgPrice || s.avgPrice || 0;
           const realPnl  = pos.realizedPnl;
           const val      = qty * s.curPrice;
           const cost     = qty * avgPrice;
