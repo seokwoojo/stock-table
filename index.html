@@ -17,6 +17,8 @@
     --accent-glow: rgba(0,230,118,0.25);
     --red: #ff5252;
     --red-dim: rgba(255,82,82,0.12);
+    --cyan: #00e5ff;
+    --cyan-dim: rgba(0,229,255,0.12);
     --blue: #448aff;
     --blue-dim: rgba(68,138,255,0.12);
     --yellow: #ffd740;
@@ -204,8 +206,8 @@
   }
   tr:hover td { background: var(--accent-dim); }
   .mono { font-family: var(--mono); }
-  .pos { color: var(--accent); }
-  .neg { color: var(--red); }
+  .pos { color: var(--red); }
+  .neg { color: var(--cyan); }
   .neutral-val { color: var(--text2); }
 
   /* ACCOUNT PANEL */
@@ -306,8 +308,8 @@
     letter-spacing: 1px;
     text-transform: uppercase;
   }
-  .badge-green { background: var(--accent-dim); color: var(--accent); border: 1px solid rgba(0,230,118,0.2); }
-  .badge-red { background: var(--red-dim); color: var(--red); border: 1px solid rgba(255,82,82,0.2); }
+  .badge-green { background: var(--red-dim); color: var(--red); border: 1px solid rgba(255,82,82,0.2); }
+  .badge-red { background: var(--cyan-dim); color: var(--cyan); border: 1px solid rgba(0,229,255,0.2); }
   .badge-blue { background: var(--blue-dim); color: var(--blue); border: 1px solid rgba(68,138,255,0.2); }
   .badge-yellow { background: var(--yellow-dim); color: var(--yellow); border: 1px solid rgba(255,215,64,0.2); }
 
@@ -616,9 +618,8 @@ const uid = () => idCnt++;
 // ─────────────── 숫자 INPUT 헬퍼 ───────────────
 const _debMap = new WeakMap();
 
-function mkNum(value, cbStr, style='', ph='0'){
+function mkNum(value, cbStr, style='', ph='0', tabAttr=''){
   const display = value ? fmtComma(value) : '';
-  // cbStr을 data 속성에 저장 → 따옴표 충돌 없음
   const escaped = cbStr.replace(/&/g,'&amp;').replace(/"/g,'&quot;');
   return `<input type="text" inputmode="numeric" class="num-input"
     value="${display}" placeholder="${ph}"
@@ -626,7 +627,8 @@ function mkNum(value, cbStr, style='', ph='0'){
     data-cb="${escaped}"
     onfocus="nFocus(this)"
     onblur="nBlur(this)"
-    oninput="nInput(this)">`;
+    oninput="nInput(this)"
+    ${tabAttr}>`;
 }
 
 function nFocus(el){
@@ -639,6 +641,13 @@ function nBlur(el){
   el.value = v ? fmtComma(v) : '';
   if(_debMap.has(el)){ clearTimeout(_debMap.get(el)); _debMap.delete(el); }
   _execCb(el.dataset.cb, v);
+}
+function nInput(el){
+  if(_debMap.has(el)) clearTimeout(_debMap.get(el));
+  _debMap.set(el, setTimeout(()=>{ _execCb(el.dataset.cb, parseComma(el.value)); }, 1000));
+}
+function _execCb(cbStr, v){
+  try{ (new Function('v', cbStr))(v); } catch(e){ console.warn('_execCb error:', cbStr, e); }
 }
 function nInput(el){
   if(_debMap.has(el)) clearTimeout(_debMap.get(el));
@@ -833,9 +842,9 @@ function renderSavings(){
           </div>
         </div>
         ${(rate !== null && current > 0) ? `
-        <div style="display:flex;align-items:center;justify-content:space-between;background:${isPos?'var(--accent-dim)':'var(--red-dim)'};border-radius:2px;padding:5px 8px;margin-bottom:10px;">
+        <div style="display:flex;align-items:center;justify-content:space-between;background:${isPos?'var(--red-dim)':'var(--cyan-dim)'};border-radius:2px;padding:5px 8px;margin-bottom:10px;">
           <span style="font-size:10px;color:var(--muted);letter-spacing:1px;">총 수익률</span>
-          <span style="font-family:var(--mono);font-size:12px;font-weight:700;color:${isPos?'var(--accent)':'var(--red)'};">${isPos?'+':''}${rate}% (${isPos?'+':''}${fmtKRW(pnl)})</span>
+          <span style="font-family:var(--mono);font-size:12px;font-weight:700;color:${isPos?'var(--red)':'var(--cyan)'};">${isPos?'+':''}${rate}% (${isPos?'+':''}${fmtKRW(pnl)})</span>
         </div>` : ''}`;
       })()}
     </div>
@@ -882,6 +891,7 @@ function removeStock(portfolioId, stockId){
   if(!p) return;
   p.stocks = p.stocks.filter(x=>x.id!==stockId);
   renderPortfolios();
+  renderSavings();
   recalcAll();
 }
 
@@ -917,11 +927,76 @@ function updateStock(pid, sid, field, value){
   if(!s) return;
   const numFields = ['qty','avgPrice','curPrice','dividend','monthlyBuy'];
   s[field] = numFields.includes(field) ? Number(value) : value;
-  if(numFields.includes(field) || field === 'dividendCycle' || field === 'dividendDate'){
+
+  if(field === 'dividendCycle' || field === 'dividendDate'){
+    // 배당 주기/날짜 변경은 UI 구조가 바뀌므로 전체 재렌더
     renderPortfolios();
+    renderSavings();
+    recalcAll();
+  } else if(numFields.includes(field)){
+    // 숫자 필드: 계산 결과 셀만 DOM 직접 업데이트 (재렌더 없음 → 포커스 유지)
+    updateStockCells(p, s);
+    updatePortfolioHeader(p);
+    renderSavings();
+    recalcAll();
   }
-  recalcAll();
   scheduleSave();
+}
+
+// 종목 행의 계산 결과 셀만 직접 업데이트
+function updateStockCells(p, s){
+  const val  = s.qty * s.curPrice;
+  const cost = s.qty * s.avgPrice;
+  const pnl  = val - cost;
+  const accDiv = s.accumulatedDividend || 0;
+  const totalPnl = pnl + accDiv;
+  const pr   = cost ? (pnl/cost*100).toFixed(2) : '0.00';
+  const tr2  = cost ? (totalPnl/cost*100).toFixed(2) : '0.00';
+  const isPos = Number(pr) >= 0;
+  const isTotPos = Number(tr2) >= 0;
+  const cycle = s.dividendCycle || '연';
+  const annualDiv = s.dividend || 0;
+  let periodDiv = annualDiv;
+  if(cycle === '월')       periodDiv = annualDiv/12;
+  else if(cycle === '분기') periodDiv = annualDiv/4;
+  const expDiv = val * (periodDiv / 100);
+
+  // 행 찾기: stock id로 특정
+  const row = document.querySelector(`tr.stock-row[data-sid="${s.id}"]`);
+  if(!row) return;
+  const cells = row.querySelectorAll('td');
+  // td 순서: 0종목명 1수량 2평단가 3현재가 4평가금액 5수익금 6주가수익률 7배당률 8배당주기 9다음배당일 10예상배당금 11실배당 12누적배당 13총수익률 14월매수금 15삭제
+  cells[4].textContent = val ? '₩'+val.toLocaleString('ko-KR') : '—';
+  cells[4].className = 'mono neutral-val';
+  cells[5].textContent = (pnl>=0?'+':'')+('₩'+Math.abs(pnl).toLocaleString('ko-KR'));
+  cells[5].className = `mono ${isPos?'pos':'neg'}`;
+  cells[6].innerHTML = `<span class="badge ${isPos?'badge-green':'badge-red'}">${isPos?'+':''}${pr}%</span>`;
+  cells[10].textContent = expDiv > 0 ? '₩'+Math.round(expDiv).toLocaleString('ko-KR') : '—';
+  cells[10].className = `mono ${expDiv>0?'pos':''}`;
+  cells[13].innerHTML = `<span class="badge ${isTotPos?'badge-green':'badge-red'}">${isTotPos?'+':''}${tr2}%</span>`;
+}
+
+// 계좌 헤더 요약 직접 업데이트
+function updatePortfolioHeader(p){
+  const panel = document.getElementById(`ph-${p.id}`);
+  if(!panel) return;
+  const totCost  = p.stocks.reduce((a,s)=>a+s.qty*s.avgPrice,0);
+  const totVal   = p.stocks.reduce((a,s)=>a+s.qty*s.curPrice,0);
+  const totPnl   = totVal - totCost;
+  const totDiv   = p.stocks.reduce((a,s)=>a+(s.accumulatedDividend||0),0);
+  const totTotal = totPnl + totDiv;
+  const pnlRate  = totCost ? (totPnl/totCost*100).toFixed(2) : 0;
+  const totRate  = totCost ? (totTotal/totCost*100).toFixed(2) : 0;
+  const stats = panel.querySelectorAll('.account-stat .val');
+  if(stats[0]) stats[0].textContent = totVal ? '₩'+totVal.toLocaleString('ko-KR') : '—';
+  if(stats[1]){
+    stats[1].textContent = (totPnl>=0?'+':'')+('₩'+Math.abs(totPnl).toLocaleString('ko-KR'))+' ('+(totPnl>=0?'+':'')+pnlRate+'%)';
+    stats[1].className = `val ${totPnl>=0?'pos':'neg'}`;
+  }
+  if(stats[2]){
+    stats[2].textContent = (totTotal>=0?'+':'')+('₩'+Math.abs(totTotal).toLocaleString('ko-KR'))+' ('+(totTotal>=0?'+':'')+totRate+'%)';
+    stats[2].className = `val ${totTotal>=0?'pos':'neg'}`;
+  }
 }
 
 function toggleAccount(id){
@@ -1008,7 +1083,25 @@ function renderPortfolios(){
       </div>
       <div class="account-body" id="pb-${p.id}">
         <div style="overflow-x:auto;-webkit-overflow-scrolling:touch;">
-        <table style="min-width:1100px;">
+        <table style="min-width:1100px;" class="portfolio-table">
+          <colgroup>
+            <col style="min-width:160px;"><!-- 종목명 -->
+            <col style="width:60px;"><!-- 수량 -->
+            <col style="width:100px;"><!-- 평단가 -->
+            <col style="width:100px;"><!-- 현재가 -->
+            <col style="width:110px;"><!-- 평가금액 -->
+            <col style="width:110px;"><!-- 수익금 -->
+            <col style="width:80px;"> <!-- 주가수익률 -->
+            <col style="width:90px;"> <!-- 배당률 -->
+            <col style="width:90px;"> <!-- 배당주기 -->
+            <col style="width:110px;"><!-- 다음배당일 -->
+            <col style="width:100px;"><!-- 예상배당금 -->
+            <col style="width:130px;"><!-- 실제배당지급액 -->
+            <col style="width:100px;"><!-- 누적배당금 -->
+            <col style="width:80px;"> <!-- 총수익률 -->
+            <col style="width:100px;"><!-- 월매수금 -->
+            <col style="width:40px;"> <!-- 삭제 -->
+          </colgroup>
           <thead>
             <tr>
               <th>종목명</th><th>수량</th><th>평단가</th><th>현재가</th>
@@ -1047,11 +1140,11 @@ function renderPortfolios(){
                   const expDiv = val * (Number(periodDiv) / 100);
 
                   return `
-                  <tr>
+                  <tr class="stock-row" data-sid="${s.id}">
                     <td>${mkText(s.name, `updateStock(${p.id},${s.id},'name',v)`, 'placeholder="종목명"')}</td>
-                    <td>${mkNum(s.qty,      `updateStock(${p.id},${s.id},'qty',v)`,      'max-width:70px;')}</td>
-                    <td>${mkNum(s.avgPrice, `updateStock(${p.id},${s.id},'avgPrice',v)`)}</td>
-                    <td>${mkNum(s.curPrice, `updateStock(${p.id},${s.id},'curPrice',v)`)}</td>
+                    <td>${mkNum(s.qty,      `updateStock(${p.id},${s.id},'qty',v)`,      'max-width:55px;', '0')}</td>
+                    <td>${mkNum(s.avgPrice, `updateStock(${p.id},${s.id},'avgPrice',v)`, '', '0')}</td>
+                    <td>${mkNum(s.curPrice, `updateStock(${p.id},${s.id},'curPrice',v)`, '', '0')}</td>
                     <td class="mono neutral-val">${fmtKRW(val)}</td>
                     <td class="mono ${pc}">${sign}${fmtKRW(pnl)}</td>
                     <td><span class="badge ${Number(pr)>=0?'badge-green':'badge-red'}">${sign}${pr}%</span></td>
@@ -1121,6 +1214,7 @@ function addDividend(pid, sid){
     s.accumulatedDividend = (s.accumulatedDividend || 0) + amount;
     if(inputEl) inputEl.value = '';
     renderPortfolios();
+    renderSavings();
     recalcAll();
     scheduleSave();
     showToast(`✅ 배당금 ${fmtKRW(amount)} 추가됨 (누적: ${fmtKRW(s.accumulatedDividend)})`);
@@ -1301,7 +1395,7 @@ function renderMaturity(){
     const maturityAmt = calcMaturityAmt(monthlyAmt, m.rate, m.startDate, m.endDate);
 
     return `
-    <tr>
+    <tr class="mat-row">
       <td>${mkText(m.name, `updateMaturity(${m.id},'name',v)`, `id="mat-name-${m.id}" placeholder="계좌명"`)}</td>
       <td>
         <select onchange="updateMaturity(${m.id},'type',this.value)">
@@ -1519,6 +1613,19 @@ function showToast(msg){
   clearTimeout(t._timer);
   t._timer = setTimeout(() => t.style.opacity = '0', 2200);
 }
+
+// ─────────────── TAB 키 행 내 이동 ───────────────
+document.addEventListener('keydown', function(e){
+  if(e.key !== 'Tab') return;
+  const row = e.target.closest('tr.stock-row, tr.mat-row');
+  if(!row) return;
+  const focusable = Array.from(row.querySelectorAll('input, select')).filter(el => !el.disabled);
+  const idx = focusable.indexOf(e.target);
+  if(idx === -1) return;
+  e.preventDefault();
+  const next = e.shiftKey ? focusable[idx-1] : focusable[idx+1];
+  if(next) next.focus();
+});
 
 // ─────────────── INIT ───────────────
 document.getElementById('baseMonth').value = new Date().toISOString().slice(0,7);
