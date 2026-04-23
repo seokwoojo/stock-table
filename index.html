@@ -1044,11 +1044,10 @@ function updateMaturity(id, field, value){
   const m = state.maturity.find(x=>x.id===id);
   if(!m) return;
   m[field] = ['principal','rate'].includes(field) ? Number(value) : value;
-  // 계좌명 변경 시 저축 카드도 동기화
+  // 계좌명 변경 시 저축 카드도 동기화 (리렌더 없이 DOM 직접 업데이트)
   if(field === 'name'){
     const s = state.savings.find(x=>x.id===id);
     if(s) s.name = value;
-    // 저축 카드 이름 DOM 직접 업데이트 (리렌더 없이)
     const nameInput = document.querySelector(`#sc-${id} .savings-name-input`);
     if(nameInput) nameInput.value = value;
   }
@@ -1057,25 +1056,36 @@ function updateMaturity(id, field, value){
     const s = state.savings.find(x=>x.id===id);
     if(s) s.totalPrincipal = Number(value);
   }
-  renderMaturity();
-  recalcAll();
+  // 텍스트 필드(name)는 리렌더 없이 state만 업데이트
+  // 숫자/날짜 필드만 리렌더 (계산값 반영 필요)
+  if(field !== 'name'){
+    renderMaturity();
+    recalcAll();
+  }
   scheduleSave();
 }
 
-// 저축 카드에서 적금 이름 변경 → 만기 일정도 동기화
 function updateSavings(id, field, value){
   const s = state.savings.find(x=>x.id===id);
   if(!s) return;
   s[field] = ['monthlyAmt','totalPrincipal','currentAmt'].includes(field) ? Number(value) : value;
   if(field === 'name' && s.type === '적금'){
     const m = state.maturity.find(x=>x.id===id);
-    if(m){ m.name = value; renderMaturity(); }
+    if(m){
+      m.name = value;
+      // 만기 일정 이름도 DOM 직접 업데이트 (리렌더 없이)
+      const matInput = document.querySelector(`#mat-name-${id}`);
+      if(matInput) matInput.value = value;
+    }
   }
   if(field === 'totalPrincipal' && s.type === '적금'){
     const m = state.maturity.find(x=>x.id===id);
     if(m){ m.principal = Number(value); renderMaturity(); }
   }
-  recalcAll();
+  // 텍스트 필드는 리렌더 없이, 숫자 필드만 recalc
+  if(field !== 'name'){
+    recalcAll();
+  }
   scheduleSave();
 }
 
