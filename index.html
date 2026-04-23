@@ -658,12 +658,24 @@ function renderSavings(){
       </div>
       ${(()=>{
         const isSavings = s.type === '적금';
-        // 포트폴리오 평가금액 합산 (적금 제외)
-        const portfolioVal = isSavings ? null :
-          state.portfolios.filter(p=>p.type===s.type).reduce((a,p)=>a+p.stocks.reduce((b,st)=>b+st.qty*st.curPrice,0),0);
-        const principal = isSavings ? (s.totalPrincipal||0) : portfolioVal;
-        const current = s.currentAmt||0;
-        const pnl = current - principal;
+        const PORTFOLIO_TYPES = ['ISA','CMA','과세연금저축','비과세연금저축','IRP'];
+        const isPortfolioType = PORTFOLIO_TYPES.includes(s.type);
+
+        // 포트폴리오 타입: 평가금액(원금) + 총수익(주가+배당) 자동 계산
+        const portPrincipal = isPortfolioType
+          ? state.portfolios.filter(p=>p.type===s.type).reduce((a,p)=>a+p.stocks.reduce((b,st)=>b+st.qty*st.avgPrice,0),0)
+          : 0;
+        const portVal = isPortfolioType
+          ? state.portfolios.filter(p=>p.type===s.type).reduce((a,p)=>a+p.stocks.reduce((b,st)=>b+st.qty*st.curPrice,0),0)
+          : 0;
+        const portDiv = isPortfolioType
+          ? state.portfolios.filter(p=>p.type===s.type).reduce((a,p)=>a+p.stocks.reduce((b,st)=>b+(st.accumulatedDividend||0),0),0)
+          : 0;
+        const portTotalVal = portVal + portDiv; // 총 수익 반영 현재금액
+
+        const principal = isSavings ? (s.totalPrincipal||0) : portPrincipal;
+        const current   = isSavings ? (s.currentAmt||0)     : portTotalVal;
+        const pnl  = current - principal;
         const rate = principal > 0 ? (pnl/principal*100).toFixed(2) : null;
         const isPos = pnl >= 0;
 
@@ -681,44 +693,35 @@ function renderSavings(){
                     onfocus="this.style.borderColor='var(--accent)'"
                     onblur="this.style.borderColor='var(--border)'">
                 </div>`
-              : `<div style="font-family:var(--mono);font-size:13px;font-weight:600;color:var(--text2);">${fmtKRW(portfolioVal)}</div>
-                 <div style="font-size:9px;color:var(--muted);margin-top:2px;">포트폴리오 평가금액</div>`
+              : `<div style="font-family:var(--mono);font-size:13px;font-weight:600;color:var(--text2);">${fmtKRW(portPrincipal)}</div>
+                 <div style="font-size:9px;color:var(--muted);margin-top:2px;">매입 원가 합산</div>`
             }
           </div>
           <div>
             <div style="font-size:10px;color:var(--muted);letter-spacing:1px;text-transform:uppercase;margin-bottom:4px;">현재 금액</div>
-            <div style="display:flex;align-items:center;gap:3px;">
-              <span style="font-family:var(--mono);font-size:11px;color:var(--muted);">₩</span>
-              <input type="number"
-                style="background:transparent;border:none;border-bottom:1px dashed var(--border);font-family:var(--mono);font-size:13px;font-weight:600;color:var(--text2);padding:2px 0;width:100%;"
-                value="${s.currentAmt||''}" placeholder="0"
-                oninput="updateSavings(${s.id},'currentAmt',this.value)"
-                onfocus="this.style.borderColor='var(--accent)'"
-                onblur="this.style.borderColor='var(--border)'">
-            </div>
+            ${isSavings
+              ? `<div style="display:flex;align-items:center;gap:3px;">
+                  <span style="font-family:var(--mono);font-size:11px;color:var(--muted);">₩</span>
+                  <input type="number"
+                    style="background:transparent;border:none;border-bottom:1px dashed var(--border);font-family:var(--mono);font-size:13px;font-weight:600;color:var(--text2);padding:2px 0;width:100%;"
+                    value="${s.currentAmt||''}" placeholder="0"
+                    oninput="updateSavings(${s.id},'currentAmt',this.value)"
+                    onfocus="this.style.borderColor='var(--accent)'"
+                    onblur="this.style.borderColor='var(--border)'">
+                </div>`
+              : `<div style="font-family:var(--mono);font-size:13px;font-weight:600;color:var(--text2);">${fmtKRW(portTotalVal)}</div>
+                 <div style="font-size:9px;color:var(--muted);margin-top:2px;">평가금 ${fmtKRW(portVal)} + 배당 ${fmtKRW(portDiv)}</div>`
+            }
           </div>
         </div>
         ${(rate !== null && current > 0) ? `
         <div style="display:flex;align-items:center;justify-content:space-between;background:${isPos?'var(--accent-dim)':'var(--red-dim)'};border-radius:2px;padding:5px 8px;margin-bottom:10px;">
-          <span style="font-size:10px;color:var(--muted);letter-spacing:1px;">수익률</span>
+          <span style="font-size:10px;color:var(--muted);letter-spacing:1px;">총 수익률</span>
           <span style="font-family:var(--mono);font-size:12px;font-weight:700;color:${isPos?'var(--accent)':'var(--red)'};">${isPos?'+':''}${rate}% (${isPos?'+':''}${fmtKRW(pnl)})</span>
         </div>` : ''}`;
       })()}
     </div>
   `).join('');
-}
-
-function updateSavings(id, field, value){
-  const s = state.savings.find(x=>x.id===id);
-  if(!s) return;
-  s[field] = ['monthlyAmt','totalPrincipal','currentAmt'].includes(field) ? Number(value) : value;
-  if(field==='maturityDate') renderSavings();
-  recalcAll();
-}
-function removeSavings(id){
-  state.savings = state.savings.filter(x=>x.id!==id);
-  renderSavings();
-  recalcAll();
 }
 
 // ─────────────── PORTFOLIO ───────────────
@@ -879,7 +882,8 @@ function renderPortfolios(){
         </div>
       </div>
       <div class="account-body" id="pb-${p.id}">
-        <table>
+        <div style="overflow-x:auto;-webkit-overflow-scrolling:touch;">
+        <table style="min-width:1100px;">
           <thead>
             <tr>
               <th>종목명</th><th>수량</th><th>평단가</th><th>현재가</th>
@@ -975,6 +979,7 @@ function renderPortfolios(){
             }
           </tbody>
         </table>
+        </div>
         <button class="add-row-btn" onclick="addStock(${p.id})">＋ 종목 추가</button>
       </div>
     </div>`;
@@ -1010,21 +1015,81 @@ function updatePortfolioType(id, val){
   if(p) p.type = val;
 }
 
-// ─────────────── MATURITY ───────────────
+// ─────────────── MATURITY ↔ SAVINGS 연동 ───────────────
+// 적금 만기 일정 추가 → 저축 현황에 적금 카드 자동 생성 (같은 id로 연결)
 function addMaturityRow(){
   const id = uid();
   state.maturity.push({id, name:'', type:'적금', principal:0, rate:0, startDate:'', endDate:''});
-  renderMaturity();
+  // 저축 현황에도 동일 id로 적금 카드 생성
+  state.savings.push({id, type:'적금', name:'', monthlyAmt:0, totalPrincipal:0, currentAmt:0, maturityDate:''});
+  renderAll();
+  // 새로 추가된 만기 행의 계좌명 input에 포커스
+  setTimeout(() => {
+    const el = document.querySelector(`#mat-name-${id}`);
+    if(el){ el.focus(); }
+  }, 50);
+  scheduleSave();
 }
+
 function removeMaturity(id){
   state.maturity = state.maturity.filter(x=>x.id!==id);
-  renderMaturity();
+  // 연동된 저축 카드도 삭제
+  state.savings = state.savings.filter(x=>x.id!==id);
+  renderAll();
+  scheduleSave();
 }
+
+// 만기 일정 이름 변경 → 저축 카드 이름도 동기화
 function updateMaturity(id, field, value){
   const m = state.maturity.find(x=>x.id===id);
   if(!m) return;
   m[field] = ['principal','rate'].includes(field) ? Number(value) : value;
+  // 계좌명 변경 시 저축 카드도 동기화
+  if(field === 'name'){
+    const s = state.savings.find(x=>x.id===id);
+    if(s) s.name = value;
+    // 저축 카드 이름 DOM 직접 업데이트 (리렌더 없이)
+    const nameInput = document.querySelector(`#sc-${id} .savings-name-input`);
+    if(nameInput) nameInput.value = value;
+  }
+  // 원금 변경 시 저축 카드 총투자원금도 동기화
+  if(field === 'principal'){
+    const s = state.savings.find(x=>x.id===id);
+    if(s) s.totalPrincipal = Number(value);
+  }
   renderMaturity();
+  recalcAll();
+  scheduleSave();
+}
+
+// 저축 카드에서 적금 이름 변경 → 만기 일정도 동기화
+function updateSavings(id, field, value){
+  const s = state.savings.find(x=>x.id===id);
+  if(!s) return;
+  s[field] = ['monthlyAmt','totalPrincipal','currentAmt'].includes(field) ? Number(value) : value;
+  if(field === 'name' && s.type === '적금'){
+    const m = state.maturity.find(x=>x.id===id);
+    if(m){ m.name = value; renderMaturity(); }
+  }
+  if(field === 'totalPrincipal' && s.type === '적금'){
+    const m = state.maturity.find(x=>x.id===id);
+    if(m){ m.principal = Number(value); renderMaturity(); }
+  }
+  recalcAll();
+  scheduleSave();
+}
+
+// 저축 카드에서 적금 삭제 → 만기 일정도 삭제
+function removeSavings(id){
+  const s = state.savings.find(x=>x.id===id);
+  if(s && s.type === '적금'){
+    state.maturity = state.maturity.filter(x=>x.id!==id);
+    renderMaturity();
+  }
+  state.savings = state.savings.filter(x=>x.id!==id);
+  renderSavings();
+  recalcAll();
+  scheduleSave();
 }
 
 function dDay(dateStr){
@@ -1048,21 +1113,26 @@ function renderMaturity(){
   tbody.innerHTML = state.maturity.map(m => {
     const interest = calcInterest(m.principal, m.rate, m.startDate, m.endDate);
     const dd = dDay(m.endDate);
-    const ddLabel = dd === '만기' ? `<span class="badge badge-red">만기</span>` 
-                  : dd <= 30 ? `<span class="badge badge-yellow">D-${dd}</span>` 
-                  : `<span class="badge badge-blue">D-${dd}</span>`;
+    const ddLabel = dd === '만기' ? `<span class="badge badge-red">만기</span>`
+                  : dd <= 30    ? `<span class="badge badge-yellow">D-${dd}</span>`
+                  :               `<span class="badge badge-blue">D-${dd}</span>`;
     return `
     <tr>
-      <td><input value="${m.name}" placeholder="계좌명" oninput="updateMaturity(${m.id},'name',this.value)"></td>
+      <td><input id="mat-name-${m.id}" value="${m.name}" placeholder="계좌명"
+        oninput="updateMaturity(${m.id},'name',this.value)"></td>
       <td>
         <select onchange="updateMaturity(${m.id},'type',this.value)">
           ${['적금','예금','청약','기타'].map(t=>`<option ${m.type===t?'selected':''}>${t}</option>`).join('')}
         </select>
       </td>
-      <td><input type="number" value="${m.principal||''}" placeholder="0" oninput="updateMaturity(${m.id},'principal',this.value)"></td>
-      <td><input type="number" value="${m.rate||''}" placeholder="3.5" step="0.1" oninput="updateMaturity(${m.id},'rate',this.value)" style="max-width:70px;"></td>
-      <td><input type="date" value="${m.startDate||''}" oninput="updateMaturity(${m.id},'startDate',this.value)"></td>
-      <td><input type="date" value="${m.endDate||''}" oninput="updateMaturity(${m.id},'endDate',this.value)"></td>
+      <td><input type="number" value="${m.principal||''}" placeholder="0"
+        oninput="updateMaturity(${m.id},'principal',this.value)"></td>
+      <td><input type="number" value="${m.rate||''}" placeholder="3.5" step="0.1"
+        oninput="updateMaturity(${m.id},'rate',this.value)" style="max-width:70px;"></td>
+      <td><input type="date" value="${m.startDate||''}"
+        oninput="updateMaturity(${m.id},'startDate',this.value)"></td>
+      <td><input type="date" value="${m.endDate||''}"
+        oninput="updateMaturity(${m.id},'endDate',this.value)"></td>
       <td class="mono pos">${interest ? fmtKRW(interest) : '—'}</td>
       <td>${m.endDate ? ddLabel : '—'}</td>
       <td><button class="btn btn-danger" onclick="removeMaturity(${m.id})">✕</button></td>
@@ -1160,18 +1230,13 @@ function scheduleSave(){
   saveTimer = setTimeout(saveToStorage, 800);
 }
 
-// Patch all mutating functions to auto-save
-const _orig = {
-  updateSavings, removeSavings, updateStock, removeStock, removePortfolio,
-  updatePortfolioName, updatePortfolioType, addSavingsAccount, addPortfolioAccount,
-  addStock, updateMaturity, removeMaturity, addMaturityRow
-};
-// Wrap each to call scheduleSave after
-['updateSavings','removeSavings','updateStock','removeStock','removePortfolio',
+// Patch remaining mutating functions to auto-save
+// (updateSavings/removeSavings/updateMaturity/removeMaturity/addMaturityRow call scheduleSave directly)
+['updateStock','removeStock','removePortfolio',
  'updatePortfolioName','updatePortfolioType','addSavingsAccount','addPortfolioAccount',
- 'addStock','updateMaturity','removeMaturity','addMaturityRow'].forEach(fn => {
+ 'addStock'].forEach(fn => {
   const orig = window[fn];
-  window[fn] = function(){ orig.apply(this, arguments); scheduleSave(); };
+  if(orig) window[fn] = function(){ orig.apply(this, arguments); scheduleSave(); };
 });
 // Also save on basic input changes
 ['salary','baseMonth'].forEach(id => {
@@ -1233,7 +1298,7 @@ function clearAll(){
   if(!confirm('모든 데이터를 초기화할까요? 이 작업은 되돌릴 수 없습니다.')) return;
   localStorage.removeItem(LS_KEY);
   state.savings = []; state.portfolios = []; state.maturity = [];
-  ['salary','totalAsset','savingsGoal'].forEach(id => document.getElementById(id).value = '');
+  ['salary','baseMonth'].forEach(id => { const el = document.getElementById(id); if(el) el.value = ''; });
   document.getElementById('baseMonth').value = new Date().toISOString().slice(0,7);
   renderAll();
   showToast('🗑️ 초기화 완료');
