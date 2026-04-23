@@ -1,25 +1,17 @@
 /**
  * 투자 대시보드 v02 - Google Apps Script
+ * 국내 주식 / 국내 상장 ETF 주가 조회
  *
- * [배포] 배포 → 배포 관리 → 편집 → 새 버전 → 배포
+ * [배포 방법]
+ * 1. https://script.google.com → 기존 내용 전체 삭제 후 붙여넣기
+ * 2. 배포 → 배포 관리 → 편집 → 새 버전 → 배포
  */
-
-// EUC-KR 바이트를 UTF-8 문자열로 변환
-function eucKrToUtf8(bytes) {
-  try {
-    // Apps Script Utilities.newBlob + getDataAsString으로 인코딩 변환
-    const blob = Utilities.newBlob(bytes, 'text/html; charset=EUC-KR');
-    return blob.getDataAsString('EUC-KR');
-  } catch(e) {
-    return null;
-  }
-}
 
 function getStockInfo(code) {
   try {
     const paddedCode = code.toString().padStart(6, '0');
 
-    // 1. 현재가: polling API (JSON, UTF-8 문제 없음)
+    // 현재가: polling API
     const apiUrl = 'https://polling.finance.naver.com/api/realtime?query=SERVICE_ITEM:' + paddedCode;
     const res = UrlFetchApp.fetch(apiUrl, {
       muteHttpExceptions: true,
@@ -31,22 +23,16 @@ function getStockInfo(code) {
                  json.result.areas[0].datas[0];
 
     if (!item) return { error: '종목을 찾을 수 없습니다: ' + paddedCode };
-
     const price = Number(item.nv) || 0;
 
-    // 2. 종목명: sise 페이지를 EUC-KR 바이트로 받아서 변환
+    // 종목명: sise 페이지 EUC-KR 디코딩
     const nameUrl = 'https://finance.naver.com/item/sise.naver?code=' + paddedCode;
     const nameRes = UrlFetchApp.fetch(nameUrl, {
       muteHttpExceptions: true,
       headers: { 'User-Agent': 'Mozilla/5.0', 'Referer': 'https://finance.naver.com' }
     });
-
-    // 바이트 그대로 받아서 EUC-KR로 디코딩
-    const rawBytes = nameRes.getContent(); // byte[]
-    const blob = Utilities.newBlob(rawBytes);
+    const blob = Utilities.newBlob(nameRes.getContent());
     const html = blob.getDataAsString('EUC-KR');
-
-    // title 태그에서 종목명 추출 (": Npay 증권" 등 제거)
     const nameMatch = html.match(/<title>([^<:]+)/);
     const name = nameMatch ? nameMatch[1].trim() : paddedCode;
 
@@ -58,12 +44,6 @@ function getStockInfo(code) {
   }
 }
 
-function testStock() {
-  Logger.log(JSON.stringify(getStockInfo('360750')));
-  Logger.log(JSON.stringify(getStockInfo('416180')));
-  Logger.log(JSON.stringify(getStockInfo('005930')));
-}
-
 function getMultipleStocks(codes) {
   const results = {};
   codes.forEach(function(code) {
@@ -71,6 +51,12 @@ function getMultipleStocks(codes) {
     Utilities.sleep(300);
   });
   return results;
+}
+
+function testStock() {
+  Logger.log(JSON.stringify(getStockInfo('005930')));
+  Logger.log(JSON.stringify(getStockInfo('360750')));
+  Logger.log(JSON.stringify(getStockInfo('416180')));
 }
 
 function doGet(e) {

@@ -425,8 +425,8 @@ function renderPortfolios(){
             <td>
               <div style="display:flex;flex-direction:column;gap:3px;">
                 <div style="display:flex;gap:4px;align-items:center;">
-                  <input type="text" placeholder="종목코드" value="${s.code||''}"
-                    style="max-width:72px;font-family:var(--mono);font-size:11px;text-align:center;letter-spacing:1px;"
+                  <input type="text" placeholder="종목코드 (예:005930)" value="${s.code||''}"
+                    style="max-width:100px;font-family:var(--mono);font-size:11px;text-align:center;letter-spacing:1px;"
                     data-cb="updateStock(${p.id},${s.id},'code',v)"
                     oninput="nInputText(this)" onblur="nBlurText(this)">
                   <button onclick="lookupStock(${p.id},${s.id})"
