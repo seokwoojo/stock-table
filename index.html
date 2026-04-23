@@ -487,14 +487,6 @@
       <input type="number" id="salary" placeholder="3,500,000" oninput="recalcAll()">
     </div>
     <div class="input-group">
-      <label>현재 총 자산</label>
-      <input type="number" id="totalAsset" placeholder="50,000,000" oninput="recalcAll()">
-    </div>
-    <div class="input-group">
-      <label>월 총 저축 목표</label>
-      <input type="number" id="savingsGoal" placeholder="1,500,000" oninput="recalcAll()">
-    </div>
-    <div class="input-group">
       <label>기준 연도/월</label>
       <input type="month" id="baseMonth" oninput="recalcAll()">
     </div>
@@ -514,8 +506,9 @@
       <div class="card-sub" id="s-saveRate">저축률 —</div>
     </div>
     <div class="card">
-      <div class="card-label">현재 총 자산</div>
+      <div class="card-label">현재 총 자산 <span style="font-size:9px;color:var(--text3);">(계좌 합산)</span></div>
       <div class="card-value neutral" id="s-asset">—</div>
+      <div class="card-sub" id="s-assetSub"></div>
     </div>
     <div class="card">
       <div class="card-label">총 평가 수익</div>
@@ -698,12 +691,6 @@ function renderSavings(){
           <span style="font-family:var(--mono);font-size:12px;font-weight:700;color:${isPos?'var(--accent)':'var(--red)'};">${isPos?'+':''}${rate}% (${isPos?'+':''}${fmtKRW(pnl)})</span>
         </div>`;
       })() : ''}
-      <div style="margin-top:12px;">
-        <div style="font-size:10px;color:var(--muted);letter-spacing:1px;text-transform:uppercase;margin-bottom:4px;">만기일 (선택)</div>
-        <input type="date" style="background:transparent;border:none;border-bottom:1px dashed var(--border);font-family:var(--mono);font-size:11px;color:var(--text2);padding:2px 0;width:100%;" 
-          value="${s.maturityDate||''}" oninput="updateSavings(${s.id},'maturityDate',this.value)">
-        ${s.maturityDate ? `<div style="font-size:10px;color:var(--yellow);margin-top:4px;">D-${dDay(s.maturityDate)}</div>` : ''}
-      </div>
     </div>
   `).join('');
 }
@@ -787,9 +774,15 @@ function updateStock(pid, sid, field, value){
   if(!p) return;
   const s = p.stocks.find(x=>x.id===sid);
   if(!s) return;
-  s[field] = ['qty','avgPrice','curPrice','dividend','monthlyBuy'].includes(field) ? Number(value) : value;
-  renderPortfolios();
+  const numFields = ['qty','avgPrice','curPrice','dividend','monthlyBuy'];
+  s[field] = numFields.includes(field) ? Number(value) : value;
+  // Only re-render (which resets DOM) for numeric fields that affect calculated cells
+  // For text fields (name), just update state — no re-render so cursor stays intact
+  if(numFields.includes(field)){
+    renderPortfolios();
+  }
   recalcAll();
+  scheduleSave();
 }
 
 function toggleAccount(id){
@@ -980,11 +973,13 @@ function renderMaturity(){
 // ─────────────── RECALC ───────────────
 function recalcAll(){
   const salary = Number(document.getElementById('salary').value) || 0;
-  const asset  = Number(document.getElementById('totalAsset').value) || 0;
-  const goal   = Number(document.getElementById('savingsGoal').value) || 0;
 
   // Monthly savings total
   const monthSave = state.savings.reduce((a,s)=>a+s.monthlyAmt,0);
+
+  // Total asset = sum of all account currentAmt
+  const totalAsset = state.savings.reduce((a,s)=>a+(s.currentAmt||0),0);
+  const totalPrincipal = state.savings.reduce((a,s)=>a+(s.totalPrincipal||0),0);
 
   // Portfolio stats
   const totCost = state.portfolios.reduce((a,p)=>a+p.stocks.reduce((b,s)=>b+s.qty*s.avgPrice,0),0);
@@ -994,7 +989,6 @@ function recalcAll(){
 
   // Header cards
   document.getElementById('s-salary').textContent = salary ? fmtKRW(salary) : '—';
-  document.getElementById('s-asset').textContent = asset ? fmtKRW(asset) : '—';
 
   const msEl = document.getElementById('s-monthSave');
   msEl.textContent = fmtKRW(monthSave);
@@ -1002,6 +996,16 @@ function recalcAll(){
   const saveRatePct = salary ? (monthSave/salary*100).toFixed(1) : 0;
   document.getElementById('s-saveProg').style.width = saveRate + '%';
   document.getElementById('s-saveRate').textContent = `저축률 ${saveRatePct}%`;
+
+  document.getElementById('s-asset').textContent = totalAsset ? fmtKRW(totalAsset) : '—';
+  if(totalPrincipal > 0 && totalAsset > 0){
+    const assetPnl = totalAsset - totalPrincipal;
+    const assetRate = (assetPnl/totalPrincipal*100).toFixed(2);
+    document.getElementById('s-assetSub').textContent =
+      `원금 ${fmtKRW(totalPrincipal)} / ${assetPnl>=0?'+':''}${assetRate}%`;
+  } else {
+    document.getElementById('s-assetSub').textContent = '';
+  }
 
   const profEl = document.getElementById('s-profit');
   profEl.textContent = totPnl ? (totPnl>0?'+':'')+fmtKRW(totPnl) : '—';
@@ -1020,8 +1024,6 @@ const LS_KEY = 'investment_dashboard_v1';
 function saveToStorage(){
   const data = {
     salary:    document.getElementById('salary').value,
-    totalAsset:document.getElementById('totalAsset').value,
-    savingsGoal:document.getElementById('savingsGoal').value,
     baseMonth: document.getElementById('baseMonth').value,
     savings:   state.savings,
     portfolios:state.portfolios,
@@ -1038,8 +1040,6 @@ function loadFromStorage(){
     if(!raw) return false;
     const data = JSON.parse(raw);
     if(data.salary)     document.getElementById('salary').value     = data.salary;
-    if(data.totalAsset) document.getElementById('totalAsset').value = data.totalAsset;
-    if(data.savingsGoal)document.getElementById('savingsGoal').value= data.savingsGoal;
     if(data.baseMonth)  document.getElementById('baseMonth').value  = data.baseMonth;
     if(data.savings)    state.savings    = data.savings;
     if(data.portfolios) state.portfolios = data.portfolios;
@@ -1079,8 +1079,6 @@ function exportJSON(){
   const data = {
     exportedAt: new Date().toISOString(),
     salary:    document.getElementById('salary').value,
-    totalAsset:document.getElementById('totalAsset').value,
-    savingsGoal:document.getElementById('savingsGoal').value,
     baseMonth: document.getElementById('baseMonth').value,
     savings:   state.savings,
     portfolios:state.portfolios,
@@ -1110,8 +1108,6 @@ function importJSON(){
       try {
         const data = JSON.parse(ev.target.result);
         if(data.salary)     document.getElementById('salary').value     = data.salary;
-        if(data.totalAsset) document.getElementById('totalAsset').value = data.totalAsset;
-        if(data.savingsGoal)document.getElementById('savingsGoal').value= data.savingsGoal;
         if(data.baseMonth)  document.getElementById('baseMonth').value  = data.baseMonth;
         if(data.savings)    state.savings    = data.savings;
         if(data.portfolios) state.portfolios = data.portfolios;
