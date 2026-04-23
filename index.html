@@ -591,10 +591,10 @@ const state = {
 };
 
 // Account types
-const ACCOUNT_TYPES = ['ISA','CMA','연금저축1','연금저축2','IRP','적금1','적금2','기타'];
+const ACCOUNT_TYPES = ['ISA','CMA','비과세 연금저축','과세 연금저축','IRP','적금1','적금2','기타'];
 const TYPE_CLASS = {
   'ISA':'tag-isa','CMA':'tag-cma',
-  '연금저축1':'tag-pension','연금저축2':'tag-pension',
+  '비과세 연금저축':'tag-pension','과세 연금저축':'tag-pension',
   'IRP':'tag-irp','적금1':'tag-savings','적금2':'tag-savings','기타':''
 };
 
@@ -688,7 +688,7 @@ function removeSavings(id){
 
 // ─────────────── PORTFOLIO ───────────────
 // Fixed accounts always displayed (not deletable)
-const FIXED_PORTFOLIO_TYPES = ['ISA','CMA','연금저축1','IRP'];
+const FIXED_PORTFOLIO_TYPES = ['ISA','CMA','비과세 연금저축','과세 연금저축','IRP'];
 
 function ensureFixedPortfolios(){
   FIXED_PORTFOLIO_TYPES.forEach(type => {
@@ -1143,8 +1143,8 @@ if(!loaded){
   const defaults = [
     {type:'ISA',name:'ISA 계좌',monthlyAmt:0,maturityDate:''},
     {type:'CMA',name:'CMA 통장',monthlyAmt:0,maturityDate:''},
-    {type:'연금저축1',name:'연금저축 펀드1',monthlyAmt:0,maturityDate:''},
-    {type:'연금저축2',name:'연금저축 펀드2',monthlyAmt:0,maturityDate:''},
+    {type:'비과세 연금저축',name:'비과세 연금저축 펀드',monthlyAmt:0,maturityDate:''},
+    {type:'과세 연금저축',name:'과세 연금저축 펀드',monthlyAmt:0,maturityDate:''},
     {type:'IRP',name:'IRP 계좌',monthlyAmt:0,maturityDate:''},
     {type:'적금1',name:'적금1',monthlyAmt:0,maturityDate:''},
     {type:'적금2',name:'적금2',monthlyAmt:0,maturityDate:''},
