@@ -199,6 +199,7 @@ function openTradeModal(pid){
             <input type="text" inputmode="numeric" id="modal-base-price" placeholder="0" style="max-width:100px;font-family:var(--mono);font-size:12px;" onfocus="this.select()">
             <span style="font-size:11px;color:var(--muted);">원</span>
           </div>
+          <button class="trade-btn trade-btn-confirm" onclick="setBasePos(${pid})" style="padding:5px 14px;">설정</button>
         </div>
       </div>
       <div style="margin-bottom:16px;">
@@ -230,6 +231,23 @@ function openTradeModal(pid){
   const sel = document.getElementById('modal-stock-select');
   sel.addEventListener('change', () => updateModalStock(pid));
   updateModalStock(pid);
+}
+
+function setBasePos(pid){
+  const p   = state.portfolios.find(x=>x.id===pid);
+  const sel = document.getElementById('modal-stock-select');
+  if(!sel||!p) return;
+  const sid = Number(sel.value);
+  const s   = p.stocks.find(x=>x.id===sid);
+  if(!s) return;
+  const bqEl = document.getElementById('modal-base-qty');
+  const bpEl = document.getElementById('modal-base-price');
+  s.baseQty      = parseComma(bqEl?.value||'0')||0;
+  s.baseAvgPrice = parseComma(bpEl?.value||'0')||0;
+  renderPortfolios(); renderSavings(); recalcAll(); scheduleSave();
+  // 현재 포지션 요약 갱신
+  updateModalStock(pid);
+  showToast(`✅ 기준 포지션 설정됨: ${s.baseQty}주 @ ${fmtKRW(s.baseAvgPrice)}`);
 }
 
 function updateModalStock(pid){
@@ -301,7 +319,7 @@ function submitTrade(pid, type){
   const s   = p.stocks.find(x=>x.id===sid);
   if(!s){ showToast('⚠️ 종목을 선택하세요'); return; }
 
-  // 기준 포지션 먼저 저장
+  // 기준 포지션 저장
   const bqEl = document.getElementById('modal-base-qty');
   const bpEl = document.getElementById('modal-base-price');
   if(bqEl && bpEl){
