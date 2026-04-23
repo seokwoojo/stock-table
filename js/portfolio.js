@@ -389,22 +389,18 @@ function renderPortfolios(){
     const isFixed   = !!p.fixed;
 
     // 배지 라벨 줄바꿈 처리
-    const badgeLabel = p.type
-      .replace('과세 연금저축', '과세<br>연금저축')
-      .replace('비과세 연금저축', '비과세<br>연금저축');
-
     const nameEl = isFixed
-      ? `<span class="account-badge" style="background:var(--accent-dim);color:var(--accent);border:1px solid rgba(0,230,118,0.3);line-height:1.3;text-align:center;">${badgeLabel}</span>
+      ? `<span class="account-badge" style="background:var(--accent-dim);color:var(--accent);border:1px solid rgba(0,230,118,0.3);white-space:nowrap;">${p.type}</span>
          <select style="font-family:var(--mono);font-size:11px;background:var(--surface2);border:1px solid var(--border);color:var(--text2);padding:3px 6px;border-radius:2px;cursor:pointer;margin-left:6px;"
            onclick="event.stopPropagation()" onchange="updatePortfolioBroker(${p.id},this.value)">
            ${BROKERS.map(b=>`<option value="${b}" ${(p.broker||'증권사 선택')===b?'selected':''}>${b}</option>`).join('')}
          </select>`
       : `<span contenteditable="true" spellcheck="false"
            class="account-badge"
-           style="background:var(--surface2);color:var(--text2);border:1px solid var(--border);line-height:1.3;text-align:center;min-width:40px;cursor:text;outline:none;"
+           style="background:var(--accent-dim);color:var(--accent);border:1px solid rgba(0,230,118,0.3);white-space:nowrap;min-width:24px;cursor:text;outline:none;"
            onclick="event.stopPropagation()"
            onblur="updatePortfolioType(${p.id},this.innerText.trim())"
-           onfocus="this.style.borderColor='var(--accent)';event.stopPropagation()"
+           onfocus="this.style.borderColor='var(--accent2)';event.stopPropagation()"
            onkeydown="if(event.key==='Enter'){event.preventDefault();this.blur();}"
            >${p.type}</span>
          <select style="font-family:var(--mono);font-size:11px;background:var(--surface2);border:1px solid var(--border);color:var(--text2);padding:3px 6px;border-radius:2px;cursor:pointer;margin-left:6px;"
