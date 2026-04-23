@@ -28,17 +28,28 @@ function renderSavings(){
     return;
   }
 
-  // 1. 포트폴리오 순서대로 주식 카드 정렬 (portfolios 배열 순서 기준)
-  const stockCards  = state.portfolios
-    .map(p => state.savings.find(s => s.id === p.id))
-    .filter(Boolean);
-  // 2. 예적금 카드 (포트폴리오에 없는 것)
-  const portfolioIds = new Set(state.portfolios.map(p=>p.id));
-  const savingCards  = state.savings.filter(s => !portfolioIds.has(s.id));
+  const FIXED_PORT_TYPES_SORT = ['ISA','CMA','과세 연금저축','비과세 연금저축','IRP'];
+  function getLinkedPortfolio(s){
+    return state.portfolios.find(p => p.id === s.id)
+      || (FIXED_PORT_TYPES_SORT.includes(s.type) ? state.portfolios.find(p => p.fixed && p.type === s.type) : null);
+  }
+
+  // 1. 주식 카드: 포트폴리오 배열 순서 기준
+  const stockCards = state.savings.filter(s => !!getLinkedPortfolio(s))
+    .sort((a, b) => {
+      const ai = state.portfolios.findIndex(p => p.id===a.id || (p.fixed && p.type===a.type));
+      const bi = state.portfolios.findIndex(p => p.id===b.id || (p.fixed && p.type===b.type));
+      return ai - bi;
+    });
+  // 2. 예적금 카드
+  const savingCards = state.savings.filter(s => !getLinkedPortfolio(s));
   const sorted = [...stockCards, ...savingCards];
 
   grid.innerHTML = sorted.map(s => {
-    const linkedPortfolio = state.portfolios.find(p => p.id === s.id);
+    // 포트폴리오 연결: id로 먼저 찾고, 없으면 고정 포트폴리오는 type으로 매칭
+    const FIXED_PORT_TYPES = ['ISA','CMA','과세 연금저축','비과세 연금저축','IRP'];
+    const linkedPortfolio = state.portfolios.find(p => p.id === s.id)
+      || (FIXED_PORT_TYPES.includes(s.type) ? state.portfolios.find(p => p.fixed && p.type === s.type) : null);
     const isStock = !!linkedPortfolio;
 
     // 주식: 초록, 예적금: 하늘색
@@ -60,13 +71,13 @@ function renderSavings(){
       principal = p.stocks.reduce((a,st)=>{
         const pos = calcPosition(st);
         // baseQty나 trades가 있으면 calcPosition, 없으면 직접 입력값 사용
-        const qty      = pos.qty      || st.qty      || 0;
-        const avgPrice = pos.avgPrice || st.avgPrice || 0;
+        const qty      = pos.qty      || st.baseQty      || 0;
+        const avgPrice = pos.avgPrice || st.baseAvgPrice || 0;
         return a + qty * avgPrice;
       }, 0);
       const val  = p.stocks.reduce((a,st)=>{
         const pos = calcPosition(st);
-        const qty = pos.qty || st.qty || 0;
+        const qty = pos.qty || st.baseQty || 0;
         return a + qty * st.curPrice;
       }, 0);
       const real = p.stocks.reduce((a,st)=>{ const pos=calcPosition(st); return a+pos.realizedPnl; },0);
@@ -114,12 +125,10 @@ function renderSavings(){
         <div>
           <div style="font-size:10px;color:var(--muted);letter-spacing:1px;text-transform:uppercase;margin-bottom:4px;">총 투자 원금</div>
           <div style="font-family:var(--mono);font-size:13px;font-weight:600;color:var(--text2);">${principal ? fmtKRW(principal) : '—'}</div>
-          <div style="font-size:9px;color:var(--muted);margin-top:2px;">${isStock ? '매입 원가 합산' : '현재 기준 총 납입금'}</div>
         </div>
         <div>
           <div style="font-size:10px;color:var(--muted);letter-spacing:1px;text-transform:uppercase;margin-bottom:4px;">현재 금액</div>
           <div style="font-family:var(--mono);font-size:13px;font-weight:600;color:var(--text2);">${current ? fmtKRW(current) : '—'}</div>
-          <div style="font-size:9px;color:var(--muted);margin-top:2px;">${isStock ? '평가금+실현+배당' : '납입금+현재까지 이자'}</div>
         </div>
       </div>
       ${(rate !== null && current > 0) ? `

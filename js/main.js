@@ -6,20 +6,21 @@ function recalcAll(){
   const monthSave = state.savings.reduce((a,s)=>a+s.monthlyAmt,0);
 
   // 계좌별 현재 금액 / 원금 계산 — id로 포트폴리오 매칭 (타입 이름 변경에도 대응)
+  const FIXED_PORT_TYPES = ['ISA','CMA','과세 연금저축','비과세 연금저축','IRP'];
   function getSavingValues(s){
-    // 연결된 포트폴리오가 있으면 포트폴리오 기준으로 계산
-    const linkedPortfolio = state.portfolios.find(p => p.id === s.id);
+    const linkedPortfolio = state.portfolios.find(p => p.id === s.id)
+      || (FIXED_PORT_TYPES.includes(s.type) ? state.portfolios.find(p => p.fixed && p.type === s.type) : null);
     if(linkedPortfolio){
       const p = linkedPortfolio;
       const principal = p.stocks.reduce((a,st)=>{
         const pos = calcPosition(st);
-        const qty      = pos.qty      || st.qty      || 0;
-        const avgPrice = pos.avgPrice || st.avgPrice || 0;
+        const qty      = pos.qty      || st.baseQty      || 0;
+        const avgPrice = pos.avgPrice || st.baseAvgPrice || 0;
         return a + qty * avgPrice;
       }, 0);
       const val  = p.stocks.reduce((a,st)=>{
         const pos = calcPosition(st);
-        const qty = pos.qty || st.qty || 0;
+        const qty = pos.qty || st.baseQty || 0;
         return a + qty * st.curPrice;
       }, 0);
       const real = p.stocks.reduce((a,st)=>{ const pos=calcPosition(st); return a+pos.realizedPnl; },0);

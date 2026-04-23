@@ -115,8 +115,8 @@ function updateStock(pid, sid, field, value){
 
 function updateStockCells(p, s){
   const pos      = calcPosition(s);
-  const qty      = pos.qty      || s.qty      || 0;
-  const avgPrice = pos.avgPrice || s.avgPrice || 0;
+  const qty      = pos.qty      || s.baseQty      || 0;
+  const avgPrice = pos.avgPrice || s.baseAvgPrice || 0;
   const realPnl  = pos.realizedPnl;
   const val      = qty * s.curPrice;
   const cost     = qty * avgPrice;
@@ -418,8 +418,8 @@ function renderPortfolios(){
       ? `<tr class="empty-row"><td colspan="16">종목이 없습니다 — 아래 버튼으로 추가하세요</td></tr>`
       : p.stocks.map(s => {
           const pos      = calcPosition(s);
-          const qty      = pos.qty      || s.qty      || 0;
-          const avgPrice = pos.avgPrice || s.avgPrice || 0;
+          const qty      = pos.qty      || s.baseQty      || 0;
+          const avgPrice = pos.avgPrice || s.baseAvgPrice || 0;
           const realPnl  = pos.realizedPnl;
           const val      = qty * s.curPrice;
           const cost     = qty * avgPrice;
