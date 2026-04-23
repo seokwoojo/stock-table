@@ -113,7 +113,7 @@ function renderSavings(){
           <select style="background:transparent;border:none;font-size:11px;color:var(--muted);padding:0;margin-bottom:5px;cursor:pointer;width:100%;" onchange="updateSavings(${s.id},'broker',this.value)">
             ${BROKERS.map(b=>`<option value="${b}" ${(broker||'증권사 선택')===b?'selected':''}>${b}</option>`).join('')}
           </select>
-          <div class="savings-card-name" style="font-size:13px;font-weight:600;color:var(--text);padding:3px 0;">${acctName||'—'}</div>
+          ${isStock ? '' : `<div class="savings-card-name" style="font-size:13px;font-weight:600;color:var(--text);padding:3px 0;">${acctName||'—'}</div>`}
         </div>
         <button class="btn btn-danger" style="margin-left:8px;flex-shrink:0;" onclick="removeSavings(${s.id})">✕</button>
       </div>
