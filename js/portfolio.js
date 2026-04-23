@@ -397,7 +397,7 @@ function renderPortfolios(){
          </select>`
       : `<span contenteditable="true" spellcheck="false"
            class="account-badge"
-           style="background:var(--accent-dim);color:var(--accent);border:1px solid rgba(0,230,118,0.3);white-space:nowrap;min-width:24px;cursor:text;outline:none;"
+           style="background:var(--accent-dim);color:var(--accent);border:1px solid rgba(0,230,118,0.3);white-space:nowrap;min-width:24px;cursor:text;outline:none;text-align:center;display:inline-flex;align-items:center;justify-content:center;"
            onclick="event.stopPropagation()"
            onblur="updatePortfolioType(${p.id},this.innerText.trim())"
            onfocus="this.style.borderColor='var(--accent2)';event.stopPropagation()"
