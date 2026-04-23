@@ -1070,7 +1070,7 @@ const _orig = {
   window[fn] = function(){ orig.apply(this, arguments); scheduleSave(); };
 });
 // Also save on basic input changes
-['salary','totalAsset','savingsGoal','baseMonth'].forEach(id => {
+['salary','baseMonth'].forEach(id => {
   document.getElementById(id).addEventListener('input', scheduleSave);
 });
 
