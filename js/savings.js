@@ -29,9 +29,11 @@ function renderSavings(){
   }
 
   const FIXED_PORT_TYPES_SORT = ['ISA','CMA','과세 연금저축','비과세 연금저축','IRP'];
+  const normalizeType = t => t ? t.replace(/\s+/g,'') : '';
+
   function getLinkedPortfolio(s){
     return state.portfolios.find(p => p.id === s.id)
-      || (FIXED_PORT_TYPES_SORT.includes(s.type) ? state.portfolios.find(p => p.fixed && p.type === s.type) : null);
+      || state.portfolios.find(p => p.fixed && normalizeType(p.type) === normalizeType(s.type));
   }
 
   // 1. 주식 카드: 포트폴리오 배열 순서 기준
@@ -46,10 +48,9 @@ function renderSavings(){
   const sorted = [...stockCards, ...savingCards];
 
   grid.innerHTML = sorted.map(s => {
-    // 포트폴리오 연결: id로 먼저 찾고, 없으면 고정 포트폴리오는 type으로 매칭
-    const FIXED_PORT_TYPES = ['ISA','CMA','과세 연금저축','비과세 연금저축','IRP'];
+    // 포트폴리오 연결: id 또는 타입(띄어쓰기 무시)으로 매칭
     const linkedPortfolio = state.portfolios.find(p => p.id === s.id)
-      || (FIXED_PORT_TYPES.includes(s.type) ? state.portfolios.find(p => p.fixed && p.type === s.type) : null);
+      || state.portfolios.find(p => p.fixed && normalizeType(p.type) === normalizeType(s.type));
     const isStock = !!linkedPortfolio;
 
     // 주식: 초록, 예적금: 하늘색

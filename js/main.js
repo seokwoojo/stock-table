@@ -7,9 +7,10 @@ function recalcAll(){
 
   // 계좌별 현재 금액 / 원금 계산 — id로 포트폴리오 매칭 (타입 이름 변경에도 대응)
   const FIXED_PORT_TYPES = ['ISA','CMA','과세 연금저축','비과세 연금저축','IRP'];
+  const normalizeType = t => t ? t.replace(/\s+/g,'') : '';
   function getSavingValues(s){
     const linkedPortfolio = state.portfolios.find(p => p.id === s.id)
-      || (FIXED_PORT_TYPES.includes(s.type) ? state.portfolios.find(p => p.fixed && p.type === s.type) : null);
+      || state.portfolios.find(p => p.fixed && normalizeType(p.type) === normalizeType(s.type));
     if(linkedPortfolio){
       const p = linkedPortfolio;
       const principal = p.stocks.reduce((a,st)=>{
@@ -114,6 +115,12 @@ function loadFromStorage(){
     if(data.maturity)   state.maturity   = data.maturity;
     if(data.gasUrl)     state.gasUrl     = data.gasUrl;
     if(data.idCnt)      idCnt = data.idCnt;
+
+    // 구버전 타입명 마이그레이션 (띄어쓰기 없는 버전 → 있는 버전)
+    const typeMap = { '과세연금저축':'과세 연금저축', '비과세연금저축':'비과세 연금저축' };
+    state.savings.forEach(s => { if(typeMap[s.type]) s.type = typeMap[s.type]; });
+    state.portfolios.forEach(p => { if(typeMap[p.type]) p.type = typeMap[p.type]; });
+
     return true;
   } catch(e){ return false; }
 }
