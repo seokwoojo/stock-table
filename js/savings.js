@@ -124,17 +124,17 @@ function renderSavings(){
       </div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:${rate!==null&&current>0?'8':'14'}px;">
         <div>
-          <div style="font-size:10px;color:var(--muted);letter-spacing:1px;text-transform:uppercase;margin-bottom:4px;">총 투자 원금</div>
+          <div style="font-size:10px;color:var(--text3);letter-spacing:1px;text-transform:uppercase;margin-bottom:4px;">총 투자 원금</div>
           <div style="font-family:var(--mono);font-size:13px;font-weight:600;color:var(--text2);">${principal ? fmtKRW(principal) : '—'}</div>
         </div>
         <div>
-          <div style="font-size:10px;color:var(--muted);letter-spacing:1px;text-transform:uppercase;margin-bottom:4px;">현재 금액</div>
+          <div style="font-size:10px;color:var(--text3);letter-spacing:1px;text-transform:uppercase;margin-bottom:4px;">현재 금액</div>
           <div style="font-family:var(--mono);font-size:13px;font-weight:600;color:var(--text2);">${current ? fmtKRW(current) : '—'}</div>
         </div>
       </div>
       ${(rate !== null && current > 0) ? `
       <div style="display:flex;align-items:center;justify-content:space-between;background:${isPos?'var(--red-dim)':'var(--cyan-dim)'};border-radius:2px;padding:5px 8px;margin-bottom:10px;">
-        <span style="font-size:10px;color:var(--muted);letter-spacing:1px;">총 수익률</span>
+        <span style="font-size:10px;color:var(--text3);letter-spacing:1px;">총 수익률</span>
         <span style="font-family:var(--mono);font-size:12px;font-weight:700;color:${isPos?'var(--red)':'var(--cyan)'};">${isPos?'+':''}${rate}% (${isPos?'+':''}${fmtKRW(pnl)})</span>
       </div>` : ''}
     </div>`;
