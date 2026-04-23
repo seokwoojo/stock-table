@@ -808,10 +808,28 @@ function renderSavings(){
         const portDiv = isPortfolioType
           ? state.portfolios.filter(p=>p.type===s.type).reduce((a,p)=>a+p.stocks.reduce((b,st)=>b+(st.accumulatedDividend||0),0),0)
           : 0;
-        const portTotalVal = portVal + portDiv; // 총 수익 반영 현재금액
+        const portTotalVal = portVal + portDiv;
 
-        const principal = isSavings ? (s.totalPrincipal||0) : portPrincipal;
-        const current   = isSavings ? (s.currentAmt||0)     : portTotalVal;
+        // 적금 타입: 만기 일정 데이터에서 자동 계산
+        let savPrincipal = 0, savCurrent = 0;
+        if(isSavings){
+          const m = state.maturity.find(x=>x.id===s.id);
+          if(m && m.startDate && s.monthlyAmt > 0){
+            const start = new Date(m.startDate);
+            const now   = new Date();
+            const elapsed = Math.max(0,
+              (now.getFullYear()-start.getFullYear())*12 + (now.getMonth()-start.getMonth())
+            );
+            const payCount = elapsed + 1; // 최초 납입 포함
+            savPrincipal = payCount * s.monthlyAmt;
+            // 현재까지 단리 이자 = 월납입 × 회차(회차+1)/2 × 연금리/12/100
+            const interest = s.monthlyAmt * (payCount*(payCount+1)/2) * ((m.rate||0)/100/12);
+            savCurrent = Math.round(savPrincipal + interest);
+          }
+        }
+
+        const principal = isSavings ? savPrincipal : portPrincipal;
+        const current   = isSavings ? savCurrent   : portTotalVal;
         const pnl  = current - principal;
         const rate = principal > 0 ? (pnl/principal*100).toFixed(2) : null;
         const isPos = pnl >= 0;
@@ -821,10 +839,8 @@ function renderSavings(){
           <div>
             <div style="font-size:10px;color:var(--muted);letter-spacing:1px;text-transform:uppercase;margin-bottom:4px;">총 투자 원금</div>
             ${isSavings
-              ? `<div style="display:flex;align-items:center;gap:3px;">
-                  <span style="font-family:var(--mono);font-size:11px;color:var(--muted);">₩</span>
-                  ${mkNum(s.totalPrincipal, `updateSavings(${s.id},'totalPrincipal',v)`, 'border:none;border-bottom:1px dashed var(--border);font-size:13px;font-weight:600;padding:2px 0;width:100%;background:transparent;color:var(--text2);', '0')}
-                </div>`
+              ? `<div style="font-family:var(--mono);font-size:13px;font-weight:600;color:var(--text2);">${savPrincipal ? fmtKRW(savPrincipal) : '—'}</div>
+                 <div style="font-size:9px;color:var(--muted);margin-top:2px;">현재 기준 총 납입금</div>`
               : `<div style="font-family:var(--mono);font-size:13px;font-weight:600;color:var(--text2);">${fmtKRW(portPrincipal)}</div>
                  <div style="font-size:9px;color:var(--muted);margin-top:2px;">매입 원가 합산</div>`
             }
@@ -832,10 +848,8 @@ function renderSavings(){
           <div>
             <div style="font-size:10px;color:var(--muted);letter-spacing:1px;text-transform:uppercase;margin-bottom:4px;">현재 금액</div>
             ${isSavings
-              ? `<div style="display:flex;align-items:center;gap:3px;">
-                  <span style="font-family:var(--mono);font-size:11px;color:var(--muted);">₩</span>
-                  ${mkNum(s.currentAmt, `updateSavings(${s.id},'currentAmt',v)`, 'border:none;border-bottom:1px dashed var(--border);font-size:13px;font-weight:600;padding:2px 0;width:100%;background:transparent;color:var(--text2);', '0')}
-                </div>`
+              ? `<div style="font-family:var(--mono);font-size:13px;font-weight:600;color:var(--text2);">${savCurrent ? fmtKRW(savCurrent) : '—'}</div>
+                 <div style="font-size:9px;color:var(--muted);margin-top:2px;">납입금 + 현재까지 이자</div>`
               : `<div style="font-family:var(--mono);font-size:13px;font-weight:600;color:var(--text2);">${fmtKRW(portTotalVal)}</div>
                  <div style="font-size:9px;color:var(--muted);margin-top:2px;">평가금 ${fmtKRW(portVal)} + 배당 ${fmtKRW(portDiv)}</div>`
             }
@@ -1428,9 +1442,35 @@ function recalcAll(){
   // Monthly savings total
   const monthSave = state.savings.reduce((a,s)=>a+s.monthlyAmt,0);
 
-  // Total asset = sum of all account currentAmt
-  const totalAsset = state.savings.reduce((a,s)=>a+(s.currentAmt||0),0);
-  const totalPrincipal = state.savings.reduce((a,s)=>a+(s.totalPrincipal||0),0);
+  // 계좌별 현재 금액 / 원금 계산 (적금은 만기 데이터 기반)
+  function getSavingValues(s){
+    if(s.type === '적금'){
+      const m = state.maturity.find(x=>x.id===s.id);
+      if(m && m.startDate && s.monthlyAmt > 0){
+        const start = new Date(m.startDate);
+        const now   = new Date();
+        const elapsed = Math.max(0,
+          (now.getFullYear()-start.getFullYear())*12 + (now.getMonth()-start.getMonth())
+        );
+        const payCount = elapsed + 1;
+        const principal = payCount * s.monthlyAmt;
+        const interest  = s.monthlyAmt * (payCount*(payCount+1)/2) * ((m.rate||0)/100/12);
+        return { principal, current: Math.round(principal + interest) };
+      }
+      return { principal: 0, current: 0 };
+    }
+    const PORTFOLIO_TYPES = ['ISA','CMA','과세연금저축','비과세연금저축','IRP'];
+    if(PORTFOLIO_TYPES.includes(s.type)){
+      const portPrincipal = state.portfolios.filter(p=>p.type===s.type).reduce((a,p)=>a+p.stocks.reduce((b,st)=>b+st.qty*st.avgPrice,0),0);
+      const portVal       = state.portfolios.filter(p=>p.type===s.type).reduce((a,p)=>a+p.stocks.reduce((b,st)=>b+st.qty*st.curPrice,0),0);
+      const portDiv       = state.portfolios.filter(p=>p.type===s.type).reduce((a,p)=>a+p.stocks.reduce((b,st)=>b+(st.accumulatedDividend||0),0),0);
+      return { principal: portPrincipal, current: portVal + portDiv };
+    }
+    return { principal: s.totalPrincipal||0, current: s.currentAmt||0 };
+  }
+
+  const totalAsset    = state.savings.reduce((a,s)=>a+getSavingValues(s).current,0);
+  const totalPrincipal= state.savings.reduce((a,s)=>a+getSavingValues(s).principal,0);
 
   // Portfolio stats
   const totCost  = state.portfolios.reduce((a,p)=>a+p.stocks.reduce((b,s)=>b+s.qty*s.avgPrice,0),0);
