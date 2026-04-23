@@ -10,9 +10,6 @@ setInterval(updateClock,1000);
 updateClock();
 
 // ─────────────── SAVINGS ───────────────
-const SAVINGS_TYPES  = ['적금']; // 예적금 타입
-const FIXED_PORTFOLIO_IDS = () => state.portfolios.filter(p=>p.fixed).map(p=>p.id);
-
 function addSavingsAccount(){
   const id = uid();
   state.savings.push({id, type:'적금', name:'새 계좌', monthlyAmt:0, totalPrincipal:0, currentAmt:0, maturityDate:''});
@@ -31,34 +28,32 @@ function renderSavings(){
     return;
   }
 
-  // 주식(포트폴리오 연결) 카드와 예적금 카드 분리 후 정렬
+  // 1. 포트폴리오 순서대로 주식 카드 정렬 (portfolios 배열 순서 기준)
+  const stockCards  = state.portfolios
+    .map(p => state.savings.find(s => s.id === p.id))
+    .filter(Boolean);
+  // 2. 예적금 카드 (포트폴리오에 없는 것)
   const portfolioIds = new Set(state.portfolios.map(p=>p.id));
-  const stockCards   = state.savings.filter(s => portfolioIds.has(s.id));
   const savingCards  = state.savings.filter(s => !portfolioIds.has(s.id));
   const sorted = [...stockCards, ...savingCards];
 
   grid.innerHTML = sorted.map(s => {
     const linkedPortfolio = state.portfolios.find(p => p.id === s.id);
-    const isStock   = !!linkedPortfolio;
-    const isSavings = !isStock; // 적금/예금 등
+    const isStock = !!linkedPortfolio;
 
-    // 카드 테마 색상
-    const cardAccent   = isStock ? 'var(--accent)'      : '#4fc3f7';
-    const cardAccentDim= isStock ? 'var(--accent-dim)'  : 'rgba(79,195,247,0.08)';
-    const cardBorder   = isStock ? 'rgba(0,230,118,0.15)' : 'rgba(79,195,247,0.15)';
-    const typeLabelClr = isStock ? 'var(--accent)'      : '#4fc3f7';
+    // 주식: 초록, 예적금: 하늘색
+    const cardAccent    = isStock ? 'var(--accent)'           : '#4fc3f7';
+    const cardAccentDim = isStock ? 'var(--accent-dim)'       : 'rgba(79,195,247,0.08)';
+    const cardBorder    = isStock ? 'rgba(0,230,118,0.15)'    : 'rgba(79,195,247,0.15)';
+    const typeLabelClr  = isStock ? 'var(--accent)'           : '#4fc3f7';
 
-    // 타입 라벨: 포트폴리오면 포트폴리오 type, 예적금이면 만기 일정의 종류
+    // 타입 라벨 & 계좌명
     const maturityEntry = !isStock ? state.maturity.find(x=>x.id===s.id) : null;
-    const typeLabel = linkedPortfolio
-      ? linkedPortfolio.type
-      : (maturityEntry ? maturityEntry.type : s.type);
-    // 이름: 포트폴리오면 accountName 사용
-    const displayName = linkedPortfolio ? linkedPortfolio.accountName : s.name;
-    // 증권사: 포트폴리오 broker 우선
-    const broker = linkedPortfolio ? (linkedPortfolio.broker || s.broker) : s.broker;
+    const typeLabel  = isStock ? linkedPortfolio.type : (maturityEntry ? maturityEntry.type : s.type);
+    const acctName   = isStock ? linkedPortfolio.accountName : (maturityEntry ? maturityEntry.name : s.name);
+    const broker     = isStock ? (linkedPortfolio.broker || s.broker) : s.broker;
 
-    // ── 수치 계산 ──
+    // 수치 계산
     let principal = 0, current = 0;
     if(isStock){
       const p = linkedPortfolio;
@@ -68,12 +63,11 @@ function renderSavings(){
       const div  = p.stocks.reduce((a,st)=>a+(st.accumulatedDividend||0),0);
       current = val + real + div;
     } else {
-      // 적금: 만기 일정 연동
-      const m = state.maturity.find(x=>x.id===s.id);
+      const m = maturityEntry;
       if(m && m.startDate && s.monthlyAmt > 0){
-        const start = new Date(m.startDate);
-        const now   = new Date();
-        const elapsed  = Math.max(0,(now.getFullYear()-start.getFullYear())*12+(now.getMonth()-start.getMonth()));
+        const start   = new Date(m.startDate);
+        const now     = new Date();
+        const elapsed = Math.max(0,(now.getFullYear()-start.getFullYear())*12+(now.getMonth()-start.getMonth()));
         const payCount = elapsed + 1;
         principal = payCount * s.monthlyAmt;
         const interest = s.monthlyAmt*(payCount*(payCount+1)/2)*((m.rate||0)/100/12);
@@ -90,16 +84,14 @@ function renderSavings(){
 
     return `
     <div class="savings-card" id="sc-${s.id}" style="border-color:${cardBorder};position:relative;">
-      <div style="position:absolute;top:0;left:0;right:0;height:2px;background:${cardAccent};border-radius:3px 3px 0 0;opacity:0.6;"></div>
+      <div style="position:absolute;top:0;left:0;right:0;height:2px;background:${cardAccent};border-radius:3px 3px 0 0;opacity:0.7;"></div>
       <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px;margin-top:4px;">
         <div style="flex:1;min-width:0;">
-          <div style="font-family:var(--mono);font-size:12px;font-weight:700;color:${typeLabelClr};margin-bottom:3px;">${typeLabel}</div>
+          <div class="savings-card-type" style="font-family:var(--mono);font-size:12px;font-weight:700;color:${typeLabelClr};margin-bottom:3px;">${typeLabel}</div>
           <select style="background:transparent;border:none;font-size:11px;color:var(--muted);padding:0;margin-bottom:5px;cursor:pointer;width:100%;" onchange="updateSavings(${s.id},'broker',this.value)">
             ${BROKERS.map(b=>`<option value="${b}" ${(broker||'증권사 선택')===b?'selected':''}>${b}</option>`).join('')}
           </select>
-          ${isStock ? '' : `
-          <div style="font-size:13px;font-weight:600;color:var(--text);padding:3px 0;">${maturityEntry ? maturityEntry.name || '—' : s.name || '—'}</div>
-          `}
+          <div class="savings-card-name" style="font-size:13px;font-weight:600;color:var(--text);padding:3px 0;">${acctName||'—'}</div>
         </div>
         <button class="btn btn-danger" style="margin-left:8px;flex-shrink:0;" onclick="removeSavings(${s.id})">✕</button>
       </div>

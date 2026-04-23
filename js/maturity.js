@@ -21,12 +21,23 @@ function updateMaturity(id, field, value){
   const m = state.maturity.find(x=>x.id===id);
   if(!m) return;
   m[field] = ['rate','payDay'].includes(field) ? Number(value) : value;
+
   if(field === 'name'){
     const s = state.savings.find(x=>x.id===id);
     if(s) s.name = value;
-    const nameInput = document.querySelector(`#sc-${id} .savings-name-input`);
-    if(nameInput) nameInput.value = value;
+    // 저축 카드 이름 DOM 직접 업데이트 (모든 행 반영)
+    const nameEl = document.querySelector(`#sc-${id} .savings-card-name`);
+    if(nameEl) nameEl.textContent = value || '—';
   }
+
+  if(field === 'type'){
+    const s = state.savings.find(x=>x.id===id);
+    if(s) s.type = value;
+    // 저축 카드 타입 라벨 DOM 직접 업데이트
+    const typeEl = document.querySelector(`#sc-${id} .savings-card-type`);
+    if(typeEl) typeEl.textContent = value;
+  }
+
   if(field !== 'name'){
     renderMaturity();
     recalcAll();
