@@ -433,6 +433,7 @@ function renderPortfolios(){
           let periodDiv = annualDiv, periodLabel = '연';
           if(cycle==='월')       { periodDiv=(annualDiv/12).toFixed(4); periodLabel='월'; }
           else if(cycle==='분기') { periodDiv=(annualDiv/4).toFixed(4);  periodLabel='분기'; }
+          const expDiv = val * (Number(periodDiv) / 100); // 예상 배당금
           const isUnrealPos = Number(pr)  >= 0;
           const isTotPos    = Number(tr2) >= 0;
           const isRealPos   = realPnl >= 0;

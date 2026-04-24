@@ -1,6 +1,7 @@
 // ─────────────── RECALC ───────────────
 function recalcAll(){
-  const salary = Number(document.getElementById('salary').value) || 0;
+  const salEl = document.getElementById('salary');
+  const salary = salEl ? (Number(salEl.value) || 0) : 0;
 
   // Monthly savings total
   const monthSave = state.savings.reduce((a,s)=>a+s.monthlyAmt,0);
@@ -45,12 +46,12 @@ function recalcAll(){
   const totalAsset    = state.savings.reduce((a,s)=>a+getSavingValues(s).current,0);
   const totalPrincipal= state.savings.reduce((a,s)=>a+getSavingValues(s).principal,0);
 
-  // Portfolio stats
-  const totCost  = state.portfolios.reduce((a,p)=>a+p.stocks.reduce((b,s)=>b+s.qty*s.avgPrice,0),0);
-  const totVal   = state.portfolios.reduce((a,p)=>a+p.stocks.reduce((b,s)=>b+s.qty*s.curPrice,0),0);
-  const totPnl   = totVal - totCost;   // 주가 수익
+  // Portfolio stats (calcPosition 기반)
+  const totCost  = state.portfolios.reduce((a,p)=>a+p.stocks.reduce((b,st)=>{ const pos=calcPosition(st); const q=pos.qty||st.baseQty||0; const ap=pos.avgPrice||st.baseAvgPrice||0; return b+q*ap; },0),0);
+  const totVal   = state.portfolios.reduce((a,p)=>a+p.stocks.reduce((b,st)=>{ const pos=calcPosition(st); const q=pos.qty||st.baseQty||0; return b+q*st.curPrice; },0),0);
+  const totPnl   = totVal - totCost;
   const totAccDiv= state.portfolios.reduce((a,p)=>a+p.stocks.reduce((b,s)=>b+(s.accumulatedDividend||0),0),0);
-  const totTotal = totPnl + totAccDiv; // 총 수익 (주가 + 배당)
+  const totTotal = totPnl + totAccDiv;
   const priceRate = totCost ? (totPnl/totCost*100).toFixed(2)   : 0;
   const totalRate = totCost ? (totTotal/totCost*100).toFixed(2) : 0;
 
