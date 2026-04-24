@@ -87,7 +87,7 @@ function recalcAll(){
 }
 
 // ─────────────── LOCAL STORAGE ───────────────
-const LS_KEY = 'investment_dashboard_v2';
+const LS_KEY = 'investment_dashboard_v3';
 
 function saveToStorage(){
   const data = {
@@ -125,11 +125,14 @@ function loadFromStorage(){
   } catch(e){ return false; }
 }
 
-// Auto-save on any state mutation — debounced
+// Auto-save — Firebase 우선, 로컬 백업 병행
 let saveTimer = null;
 function scheduleSave(){
   clearTimeout(saveTimer);
-  saveTimer = setTimeout(saveToStorage, 800);
+  saveTimer = setTimeout(() => {
+    if(typeof scheduleFirebaseSave === 'function') scheduleFirebaseSave();
+    else saveToStorage();
+  }, 800);
 }
 
 // Patch remaining mutating functions to auto-save
@@ -252,24 +255,16 @@ document.addEventListener('keydown', function(e){
 // ─────────────── INIT ───────────────
 document.getElementById('baseMonth').value = new Date().toISOString().slice(0,7);
 
-const loaded = loadFromStorage();
-
-if(!loaded){
-  // First-time defaults
+// 기본 저축 계좌 초기값 설정 함수 (Firebase 첫 로그인 시 사용)
+function initDefaultSavings(){
+  if(state.savings.length) return;
   const defaults = [
-    {type:'ISA',name:'ISA 계좌',monthlyAmt:0,totalPrincipal:0,currentAmt:0,maturityDate:''},
-    {type:'CMA',name:'CMA 통장',monthlyAmt:0,totalPrincipal:0,currentAmt:0,maturityDate:''},
-    {type:'과세 연금저축',name:'과세 연금저축',monthlyAmt:0,totalPrincipal:0,currentAmt:0,maturityDate:''},
-    {type:'비과세 연금저축',name:'비과세 연금저축',monthlyAmt:0,totalPrincipal:0,currentAmt:0,maturityDate:''},
-    {type:'IRP',name:'IRP 계좌',monthlyAmt:0,totalPrincipal:0,currentAmt:0,maturityDate:''},
-    {type:'적금',name:'적금',monthlyAmt:0,totalPrincipal:0,currentAmt:0,maturityDate:''},
+    {type:'ISA',           name:'ISA 계좌',          monthlyAmt:0,totalPrincipal:0,currentAmt:0,maturityDate:''},
+    {type:'CMA',           name:'CMA 통장',           monthlyAmt:0,totalPrincipal:0,currentAmt:0,maturityDate:''},
+    {type:'과세 연금저축',  name:'과세 연금저축',      monthlyAmt:0,totalPrincipal:0,currentAmt:0,maturityDate:''},
+    {type:'비과세 연금저축',name:'비과세 연금저축',    monthlyAmt:0,totalPrincipal:0,currentAmt:0,maturityDate:''},
+    {type:'IRP',           name:'IRP 계좌',           monthlyAmt:0,totalPrincipal:0,currentAmt:0,maturityDate:''},
+    {type:'적금',          name:'적금',               monthlyAmt:0,totalPrincipal:0,currentAmt:0,maturityDate:''},
   ];
-  defaults.forEach(d => { state.savings.push({id:uid(),...d}); });
-}
-
-renderAll();
-
-// 대시보드 시작 시 시세 1회 자동 갱신
-if(state.gasUrl) {
-  setTimeout(() => refreshAllPrices(), 1500);
+  defaults.forEach(d => state.savings.push({id:uid(),...d}));
 }

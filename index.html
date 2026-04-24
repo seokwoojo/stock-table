@@ -3,17 +3,73 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>투자 대시보드 v02</title>
+<title>투자 대시보드 v03</title>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700;900&family=IBM+Plex+Mono:wght@400;600&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="css/main.css">
+<style>
+  /* ── 로그인 화면 ── */
+  #login-screen {
+    position: fixed; inset: 0; background: var(--bg);
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    z-index: 9999; gap: 24px;
+  }
+  #login-screen h2 {
+    font-size: 28px; font-weight: 900; color: var(--text);
+    letter-spacing: -0.5px;
+  }
+  #login-screen p { font-size: 13px; color: var(--muted); margin-top: -16px; }
+  .google-login-btn {
+    display: inline-flex; align-items: center; gap: 10px;
+    background: #fff; color: #3c4043;
+    border: none; border-radius: 4px;
+    padding: 12px 24px; font-size: 15px; font-weight: 600;
+    cursor: pointer; box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+    transition: box-shadow .2s;
+  }
+  .google-login-btn:hover { box-shadow: 0 4px 16px rgba(0,0,0,0.4); }
+  .google-login-btn img { width: 20px; height: 20px; }
+
+  /* ── 헤더 유저 정보 ── */
+  #auth-user-wrap {
+    display: flex; align-items: center; gap: 8px;
+  }
+  #auth-avatar {
+    width: 28px; height: 28px; border-radius: 50%;
+    border: 2px solid var(--accent); display: none;
+  }
+  #auth-user-info {
+    font-size: 12px; color: var(--text2); font-family: var(--mono);
+  }
+  #auth-logout-btn {
+    display: none;
+    font-size: 11px; padding: 5px 10px;
+  }
+  #main-content { display: none; }
+</style>
 </head>
 <body>
+
+<!-- ── 로그인 화면 ── -->
+<div id="login-screen">
+  <div style="font-size:48px;">📊</div>
+  <h2>투자 대시보드</h2>
+  <p>Investment Portfolio Tracker</p>
+  <button class="google-login-btn" onclick="googleLogin()">
+    <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" alt="Google">
+    Google 계정으로 로그인
+  </button>
+  <p style="font-size:11px;color:var(--muted);margin-top:0;">로그인하면 어느 기기에서나 데이터가 동기화됩니다</p>
+</div>
+
+<!-- ── 메인 콘텐츠 ── -->
+<div id="main-content">
 <div class="wrap">
 
   <!-- HEADER -->
   <header>
     <div class="logo-group">
-      <h1>📊 투자 대시보드 <span style="font-size:14px;letter-spacing:2px;color:var(--accent2);">v02</span></h1>
+      <h1>📊 투자 대시보드 <span style="font-size:14px;letter-spacing:2px;color:var(--accent2);">v03</span></h1>
       <span>Investment Portfolio Tracker</span>
     </div>
     <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
@@ -21,11 +77,16 @@
         <strong id="today-date"></strong>
         <span id="today-time"></span>
       </div>
-      <!-- 주가 API 설정 -->
+      <!-- 유저 정보 -->
+      <div id="auth-user-wrap">
+        <img id="auth-avatar" src="" alt="">
+        <span id="auth-user-info"></span>
+        <button id="auth-logout-btn" class="btn btn-ghost" onclick="googleLogout()">로그아웃</button>
+      </div>
       <button class="btn btn-ghost" style="font-size:10px;padding:6px 10px;white-space:nowrap;" onclick="refreshAllPrices()">🔄 시세갱신</button>
       <button class="btn btn-ghost" onclick="exportJSON()">📥 내보내기</button>
       <button class="btn btn-ghost" onclick="importJSON()">📤 불러오기</button>
-      <button class="btn btn-primary" onclick="saveToStorage()">💾 저장</button>
+      <button class="btn btn-primary" onclick="saveToFirebase()">💾 저장</button>
       <button class="btn btn-danger" style="border:1px solid var(--border);padding:8px 12px;" onclick="clearAll()">🗑️</button>
     </div>
   </header>
@@ -35,87 +96,82 @@
   <div class="input-row">
     <div class="input-group">
       <label>월 급여 (세후)</label>
-      <input type="number" id="salary" placeholder="3,500,000" oninput="recalcAll()">
+      <div style="display:flex;align-items:center;gap:6px;">
+        <span style="font-family:var(--mono);color:var(--muted);">₩</span>
+        <input type="text" inputmode="numeric" id="salary" placeholder="0" oninput="recalcAll()" style="flex:1;">
+      </div>
     </div>
     <div class="input-group">
-      <label>기준 연도/월</label>
-      <input type="month" id="baseMonth" oninput="recalcAll()">
+      <label>기준 월</label>
+      <input type="text" id="baseMonth" placeholder="YYYY/MM" style="max-width:120px;"
+        oninput="dateTextInput(this)" onblur="dateTextBlur(this)">
     </div>
   </div>
 
-  <!-- ─── SUMMARY CARDS ─── -->
+  <!-- ─── SECTION 2: 핵심 요약 ─── -->
   <div class="section-title">핵심 요약</div>
-  <div class="grid-4" style="margin-bottom:32px;">
-    <div class="card">
+  <div class="grid-4">
+    <div class="summary-card">
       <div class="card-label">월 급여</div>
       <div class="card-value neutral" id="s-salary">—</div>
     </div>
-    <div class="card">
+    <div class="summary-card">
       <div class="card-label">월 총 저축액</div>
       <div class="card-value" id="s-monthSave">—</div>
-      <div class="progress-bar"><div class="progress-fill" id="s-saveProg" style="width:0%"></div></div>
-      <div class="card-sub" id="s-saveRate">저축률 —</div>
+      <div class="save-progress"><div class="save-bar" id="s-saveProg"></div></div>
+      <div class="card-sub" id="s-saveRate"></div>
     </div>
-    <div class="card">
-      <div class="card-label">현재 총 자산 <span style="font-size:9px;color:var(--text3);">(계좌 합산)</span></div>
+    <div class="summary-card">
+      <div class="card-label">현재 총 자산</div>
       <div class="card-value neutral" id="s-asset">—</div>
       <div class="card-sub" id="s-assetSub"></div>
     </div>
-    <div class="card">
-      <div class="card-label">총 수익 <span style="font-size:9px;opacity:0.7;">(주가+배당)</span></div>
+    <div class="summary-card">
+      <div class="card-label">포트폴리오 총 수익</div>
       <div class="card-value" id="s-profit">—</div>
-      <div class="card-sub" id="s-profitRate">총 — | 주가 —</div>
+      <div class="card-sub" id="s-profitSub"></div>
     </div>
   </div>
 
-  <!-- ─── SECTION 2: 저축 계좌 현황 ─── -->
+  <!-- ─── SECTION 3: 계좌별 월 저축 현황 ─── -->
   <div class="section-title">계좌별 월 저축 현황</div>
-  <div id="savings-grid" class="grid-3" style="margin-bottom:8px;"></div>
-  <!-- TOTAL -->
-  <div class="total-bar">
-    <div>
-      <div class="tbl">월 총 저축액 합계</div>
-      <div class="tbv" id="tb-monthTotal">₩0</div>
-    </div>
-    <div>
-      <div class="tbl">연간 예상 저축</div>
-      <div class="tbv" id="tb-yearTotal">₩0</div>
-    </div>
-    <div>
-      <div class="tbl">저축률</div>
-      <div class="tbv" id="tb-saveRate">—</div>
-    </div>
+  <div class="grid-3" id="savings-grid"></div>
+  <div class="actions-row">
+    <button class="btn btn-ghost" onclick="addSavingsAccount()">+ 예적금 계좌 추가</button>
   </div>
 
-  <!-- ─── SECTION 3: 계좌별 주식 포트폴리오 ─── -->
+  <!-- ─── SECTION 4: 계좌별 주식 포트폴리오 ─── -->
   <div class="section-title">계좌별 주식 포트폴리오</div>
   <div id="portfolio-section"></div>
   <div class="actions-row">
     <button class="btn btn-ghost" onclick="addPortfolioAccount()">+ 포트폴리오 계좌 추가</button>
   </div>
 
-  <!-- ─── SECTION 4: 예금 적금 보유 현황 ─── -->
+  <!-- ─── SECTION 5: 예금 적금 보유 현황 ─── -->
   <div class="section-title">예금 적금 보유 현황</div>
-  <div class="table-wrap">
+  <div style="overflow-x:auto;">
     <table id="maturity-table">
+      <colgroup>
+        <col style="min-width:120px;">
+        <col style="width:80px;">
+        <col style="width:100px;">
+        <col style="width:80px;">
+        <col style="width:100px;">
+        <col style="width:120px;">
+        <col style="width:120px;">
+        <col style="width:140px;">
+        <col style="width:140px;">
+        <col style="width:100px;">
+        <col style="width:40px;">
+      </colgroup>
       <thead>
         <tr>
-          <th>계좌명</th>
-          <th>종류</th>
-          <th>월 저축</th>
-          <th>입금일 (매월)</th>
-          <th>금리 (%)</th>
-          <th>가입일</th>
-          <th>만기일</th>
-          <th>현재 기준 총 납입금</th>
-          <th>만기 시 예상 금액</th>
-          <th>D-DAY</th>
-          <th></th>
+          <th>계좌명</th><th>종류</th><th>월 저축액</th><th>납입일</th>
+          <th>금리(%)</th><th>가입일</th><th>만기일</th>
+          <th>현재 기준 총 납입금</th><th>만기 예상 금액</th><th>만기까지</th><th></th>
         </tr>
       </thead>
-      <tbody id="maturity-body">
-        <tr class="empty-row"><td colspan="11">+ 버튼을 눌러 적금을 추가하세요</td></tr>
-      </tbody>
+      <tbody id="maturity-body"></tbody>
     </table>
   </div>
   <div class="actions-row">
@@ -123,6 +179,7 @@
   </div>
 
 </div><!-- /wrap -->
+</div><!-- /main-content -->
 
 <script src="js/state.js"></script>
 <script src="js/utils.js"></script>
@@ -130,5 +187,6 @@
 <script src="js/portfolio.js"></script>
 <script src="js/maturity.js"></script>
 <script src="js/main.js"></script>
+<script type="module" src="js/firebase.js"></script>
 </body>
 </html>
