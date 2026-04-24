@@ -4,6 +4,7 @@ const state = {
   portfolios: [],
   maturity: [],
   gasUrl: 'https://script.google.com/macros/s/AKfycbyAOd0dOOl_NFaxVeX3NLdc5V0PSTo7p2LYxAJbHBfAZ2g21vCzvyYQkhYCg6fKrMg/exec',
+  memo: '',
 };
 
 // 계좌 타입

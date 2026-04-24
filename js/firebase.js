@@ -49,6 +49,7 @@ async function saveToFirebase() {
       portfolios: state.portfolios,
       maturity:   state.maturity,
       gasUrl:     state.gasUrl,
+      memo:       state.memo || '',
       idCnt,
       updatedAt:  new Date().toISOString(),
     };
@@ -84,6 +85,7 @@ async function loadFromFirebase() {
     if(data.portfolios) state.portfolios = data.portfolios;
     if(data.maturity)   state.maturity   = data.maturity;
     if(data.gasUrl)     state.gasUrl     = data.gasUrl;
+    if(data.memo)       state.memo       = data.memo;
     if(data.idCnt)      idCnt            = data.idCnt;
 
     // 구버전 타입명 마이그레이션

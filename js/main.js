@@ -55,17 +55,14 @@ function recalcAll(){
   const totalRate = totCost ? (totTotal/totCost*100).toFixed(2) : 0;
 
   // DOM이 숨겨진 상태(로그인 전)면 업데이트 스킵
-  if(!document.getElementById('s-salary')) return;
-
-  // Header cards
-  document.getElementById('s-salary').textContent = salary ? fmtKRW(salary) : '—';
+  if(!document.getElementById('s-monthSave')) return;
 
   const msEl = document.getElementById('s-monthSave');
   if(msEl) msEl.textContent = fmtKRW(monthSave);
   const saveRate = salary ? Math.min((monthSave/salary*100),100) : 0;
   const saveRatePct = salary ? (monthSave/salary*100).toFixed(1) : 0;
   const spEl = document.getElementById('s-saveProg'); if(spEl) spEl.style.width = saveRate + '%';
-  const srEl = document.getElementById('s-saveRate'); if(srEl) srEl.textContent = `저축률 ${saveRatePct}%`;
+  const srEl = document.getElementById('s-saveRate'); if(srEl) srEl.textContent = salary ? `저축률 ${saveRatePct}%` : '';
 
   const saEl = document.getElementById('s-asset'); if(saEl) saEl.textContent = totalAsset ? fmtKRW(totalAsset) : '—';
   const subEl = document.getElementById('s-assetSub');
@@ -79,15 +76,6 @@ function recalcAll(){
     }
   }
 
-  const profEl = document.getElementById('s-profit');
-  if(profEl){
-    profEl.textContent = totTotal ? (totTotal>0?'+':'')+fmtKRW(totTotal) : '—';
-    profEl.className = 'card-value ' + (totTotal>0?'pos':totTotal<0?'neg':'');
-  }
-  const prEl = document.getElementById('s-profitRate');
-  if(prEl) prEl.textContent = `총 ${totTotal>0?'+':''}${totalRate}%  |  주가 ${totPnl>0?'+':''}${priceRate}%`;
-
-  // Total bar
   const tbm = document.getElementById('tb-monthTotal'); if(tbm) tbm.textContent = fmtKRW(monthSave);
   const tby = document.getElementById('tb-yearTotal');  if(tby) tby.textContent = fmtKRW(monthSave*12);
   const tbs = document.getElementById('tb-saveRate');   if(tbs) tbs.textContent = salary ? saveRatePct+'%' : '—';
@@ -98,12 +86,12 @@ const LS_KEY = 'investment_dashboard_v3';
 
 function saveToStorage(){
   const data = {
-    salary:    document.getElementById('salary').value,
-    baseMonth: document.getElementById('baseMonth').value,
+    salary:    document.getElementById('salary')?.value || '',
     savings:   state.savings,
     portfolios:state.portfolios,
     maturity:  state.maturity,
     gasUrl:    state.gasUrl,
+    memo:      state.memo || '',
     idCnt,
   };
   try { localStorage.setItem(LS_KEY, JSON.stringify(data)); } catch(e){}
@@ -115,15 +103,15 @@ function loadFromStorage(){
     const raw = localStorage.getItem(LS_KEY);
     if(!raw) return false;
     const data = JSON.parse(raw);
-    if(data.salary)     document.getElementById('salary').value     = data.salary;
-    if(data.baseMonth)  document.getElementById('baseMonth').value  = data.baseMonth;
+    if(data.salary){ const el=document.getElementById('salary'); if(el) el.value=data.salary; }
     if(data.savings)    state.savings    = data.savings;
     if(data.portfolios) state.portfolios = data.portfolios;
     if(data.maturity)   state.maturity   = data.maturity;
     if(data.gasUrl)     state.gasUrl     = data.gasUrl;
+    if(data.memo)       state.memo       = data.memo;
     if(data.idCnt)      idCnt = data.idCnt;
 
-    // 구버전 타입명 마이그레이션 (띄어쓰기 없는 버전 → 있는 버전)
+    // 구버전 타입명 마이그레이션
     const typeMap = { '과세연금저축':'과세 연금저축', '비과세연금저축':'비과세 연금저축' };
     state.savings.forEach(s => { if(typeMap[s.type]) s.type = typeMap[s.type]; });
     state.portfolios.forEach(p => { if(typeMap[p.type]) p.type = typeMap[p.type]; });
@@ -159,12 +147,12 @@ function scheduleSave(){
 function exportJSON(){
   const data = {
     exportedAt: new Date().toISOString(),
-    salary:    document.getElementById('salary').value,
-    baseMonth: document.getElementById('baseMonth').value,
+    salary:    document.getElementById('salary')?.value || '',
     savings:   state.savings,
     portfolios:state.portfolios,
     maturity:  state.maturity,
     gasUrl:    state.gasUrl,
+    memo:      state.memo || '',
     idCnt,
   };
   const blob = new Blob([JSON.stringify(data, null, 2)], {type:'application/json'});
@@ -217,11 +205,22 @@ function clearAll(){
   showToast('🗑️ 초기화 완료');
 }
 
+function saveMemo(val){
+  state.memo = val;
+  scheduleSave();
+}
+
+function loadMemo(){
+  const el = document.getElementById('memo-area');
+  if(el && state.memo) el.value = state.memo;
+}
+
 function renderAll(){
   renderSavings();
   renderPortfolios();
   renderMaturity();
   recalcAll();
+  loadMemo();
 }
 
 // ─────────────── TOAST ───────────────
@@ -260,7 +259,6 @@ document.addEventListener('keydown', function(e){
 });
 
 // ─────────────── INIT ───────────────
-document.getElementById('baseMonth').value = new Date().toISOString().slice(0,7);
 
 // 기본 저축 계좌 초기값 설정 함수 (Firebase 첫 로그인 시 사용)
 function initDefaultSavings(){

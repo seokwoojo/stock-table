@@ -442,7 +442,7 @@ function renderPortfolios(){
             <td>
               <div style="display:flex;flex-direction:column;gap:3px;">
                 <div style="display:flex;gap:4px;align-items:center;">
-                  <input type="text" placeholder="종목코드 (예:005930)" value="${s.code||''}"
+                  <input type="text" placeholder="종목코드" value="${s.code||''}"
                     style="max-width:100px;font-family:var(--mono);font-size:11px;text-align:center;letter-spacing:1px;"
                     data-cb="updateStock(${p.id},${s.id},'code',v)"
                     oninput="nInputText(this)" onblur="nBlurText(this)">
@@ -481,7 +481,9 @@ function renderPortfolios(){
             </td>
             <td>
               <div style="display:flex;align-items:center;gap:4px;">
-                <input type="text" inputmode="numeric" id="div-input-${s.id}" placeholder="0" style="max-width:75px;">
+                <input type="text" inputmode="numeric" id="div-input-${s.id}"
+                  placeholder="${expDiv>0?Math.round(expDiv).toLocaleString('ko-KR'):''}"
+                  style="max-width:75px;">
                 <button onclick="addDividend(${p.id},${s.id})"
                   style="background:var(--accent-dim);border:1px solid rgba(0,230,118,0.3);color:var(--accent);border-radius:2px;padding:3px 7px;cursor:pointer;font-weight:700;font-size:13px;">＋</button>
               </div>
