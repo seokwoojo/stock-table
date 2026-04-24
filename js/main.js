@@ -140,8 +140,9 @@ function scheduleSave(){
   if(orig) window[fn] = function(){ orig.apply(this, arguments); scheduleSave(); };
 });
 // Also save on basic input changes
-['salary','baseMonth'].forEach(id => {
-  document.getElementById(id).addEventListener('input', scheduleSave);
+['salary'].forEach(id => {
+  const el = document.getElementById(id);
+  if(el) el.addEventListener('input', scheduleSave);
 });
 
 // ─────────────── EXPORT / IMPORT ───────────────
@@ -179,7 +180,6 @@ function importJSON(){
       try {
         const data = JSON.parse(ev.target.result);
         if(data.salary)     document.getElementById('salary').value     = data.salary;
-        if(data.baseMonth)  document.getElementById('baseMonth').value  = data.baseMonth;
         if(data.savings)    state.savings    = data.savings;
         if(data.portfolios) state.portfolios = data.portfolios;
         if(data.maturity)   state.maturity   = data.maturity;
@@ -200,8 +200,6 @@ function clearAll(){
   if(!confirm('모든 데이터를 초기화할까요? 이 작업은 되돌릴 수 없습니다.')) return;
   localStorage.removeItem(LS_KEY);
   state.savings = []; state.portfolios = []; state.maturity = [];
-  ['salary','baseMonth'].forEach(id => { const el = document.getElementById(id); if(el) el.value = ''; });
-  document.getElementById('baseMonth').value = new Date().toISOString().slice(0,7);
   renderAll();
   showToast('🗑️ 초기화 완료');
 }

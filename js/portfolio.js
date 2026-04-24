@@ -433,7 +433,8 @@ function renderPortfolios(){
           let periodDiv = annualDiv, periodLabel = '연';
           if(cycle==='월')       { periodDiv=(annualDiv/12).toFixed(4); periodLabel='월'; }
           else if(cycle==='분기') { periodDiv=(annualDiv/4).toFixed(4);  periodLabel='분기'; }
-          const expDiv = val * (Number(periodDiv) / 100); // 예상 배당금
+          const expDiv = val * (Number(periodDiv) / 100);
+          const expDivPlaceholder = expDiv > 0 ? Math.round(expDiv).toLocaleString('ko-KR') : '';
           const isUnrealPos = Number(pr)  >= 0;
           const isTotPos    = Number(tr2) >= 0;
           const isRealPos   = realPnl >= 0;
@@ -483,7 +484,7 @@ function renderPortfolios(){
             <td>
               <div style="display:flex;align-items:center;gap:4px;">
                 <input type="text" inputmode="numeric" id="div-input-${s.id}"
-                  placeholder="${expDiv>0?Math.round(expDiv).toLocaleString('ko-KR'):''}"
+                  placeholder="${expDivPlaceholder}"
                   style="max-width:75px;">
                 <button onclick="addDividend(${p.id},${s.id})"
                   style="background:var(--accent-dim);border:1px solid rgba(0,230,118,0.3);color:var(--accent);border-radius:2px;padding:3px 7px;cursor:pointer;font-weight:700;font-size:13px;">＋</button>
