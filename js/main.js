@@ -197,10 +197,17 @@ function importJSON(){
 }
 
 function clearAll(){
-  if(!confirm('모든 데이터를 초기화할까요? 이 작업은 되돌릴 수 없습니다.')) return;
+  if(!confirm('모든 데이터를 초기화할까요? Firebase에 저장된 데이터도 삭제됩니다.\n이 작업은 되돌릴 수 없습니다.')) return;
   localStorage.removeItem(LS_KEY);
   state.savings = []; state.portfolios = []; state.maturity = [];
+  state.memo = ''; idCnt = 1;
+  const salEl = document.getElementById('salary');
+  if(salEl) salEl.value = '';
+  const memoEl = document.getElementById('memo-area');
+  if(memoEl) memoEl.value = '';
   renderAll();
+  // Firebase 데이터도 삭제
+  if(typeof saveToFirebase === 'function') saveToFirebase();
   showToast('🗑️ 초기화 완료');
 }
 
