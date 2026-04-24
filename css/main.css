@@ -390,6 +390,8 @@
     .grid-3 { grid-template-columns: 1fr; }
     header { flex-direction: column; align-items: flex-start; gap: 12px; }
     .account-header-right { display: none; }
+    /* 핵심 요약 4열 → 1열 */
+    .summary-grid-3 { grid-template-columns: 1fr !important; }
   }
 
   /* DIVIDER INPUT */

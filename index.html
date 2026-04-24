@@ -93,8 +93,8 @@
 
   <!-- ─── SECTION 1: 핵심 요약 ─── -->
   <div class="section-title">핵심 요약</div>
-  <div style="display:grid;grid-template-columns:1fr 1fr 1fr 2.5fr;gap:16px;margin-bottom:24px;">
-    <div class="summary-card">
+  <div class="summary-grid-3" style="display:grid;grid-template-columns:200px 200px 200px 1fr;gap:16px;margin-bottom:16px;align-items:stretch;">
+    <div class="summary-card" style="min-height:90px;">
       <div class="card-label">월 급여 (세후)</div>
       <div style="display:flex;align-items:center;gap:4px;margin-top:4px;">
         <span style="font-family:var(--mono);font-size:16px;color:var(--muted);">₩</span>
@@ -103,18 +103,18 @@
           style="background:transparent;border:none;border-bottom:1px dashed var(--accent);font-family:var(--mono);font-size:22px;font-weight:600;color:var(--text);padding:2px 0;width:100%;outline:none;">
       </div>
     </div>
-    <div class="summary-card">
+    <div class="summary-card" style="min-height:90px;">
       <div class="card-label">월 총 저축액</div>
       <div class="card-value" id="s-monthSave">—</div>
       <div class="save-progress"><div class="save-bar" id="s-saveProg"></div></div>
       <div class="card-sub" id="s-saveRate"></div>
     </div>
-    <div class="summary-card">
+    <div class="summary-card" style="min-height:90px;">
       <div class="card-label">현재 투자 자산</div>
       <div class="card-value neutral" id="s-asset">—</div>
       <div class="card-sub" id="s-assetSub"></div>
     </div>
-    <div class="summary-card" style="padding:16px 20px;">
+    <div class="summary-card" style="padding:14px 18px;">
       <div class="card-label" style="margin-bottom:6px;">📋 메모</div>
       <textarea id="memo-area" spellcheck="false"
         oninput="saveMemo(this.value)"
@@ -139,12 +139,8 @@
 
 [ CMA ]  수시 입출금 / 파킹통장
 • 절세 혜택 없음 (배당소득 15.4% 과세)
-• 추천: 국내 커버드콜 ETF, 단기채 ETF
-
-[ 납입 순서 ]
-① 연금저축 600 → ② IRP 300 → ③ ISA 최대납입
-→ ISA 만기 후 연금계좌 이체 시 세액공제 추가 300만원"
-        style="width:100%;height:130px;background:transparent;border:none;color:var(--text2);font-size:10.5px;font-family:var(--mono);resize:vertical;outline:none;line-height:1.55;"></textarea>
+• 추천: 국내 커버드콜 ETF, 단기채 ETF"
+        style="width:100%;height:90px;background:transparent;border:none;color:var(--text2);font-size:11px;font-family:var(--mono);resize:vertical;outline:none;line-height:1.6;box-sizing:border-box;"></textarea>
     </div>
   </div>
 

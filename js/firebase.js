@@ -63,16 +63,20 @@ async function saveToFirebase() {
 // ─────────────── Firebase 불러오기 ───────────────
 async function loadFromFirebase() {
   if (!currentUser) return;
+
+  // 로그인 시 state 완전 초기화 (다른 계정 데이터 방지)
+  state.savings    = [];
+  state.portfolios = [];
+  state.maturity   = [];
+  state.memo       = '';
+  idCnt            = 1;
+
   try {
     const snap = await getDoc(doc(db, 'users', currentUser.uid));
     if (!snap.exists()) {
-      const hasLocal = loadFromStorage();
-      if (hasLocal) {
-        await saveToFirebase();
-        showToast('💾 기존 데이터를 클라우드에 업로드했습니다');
-      } else {
-        if(typeof initDefaultSavings === 'function') initDefaultSavings();
-      }
+      // 이 계정의 Firebase 데이터가 없음 → 빈 상태로 시작
+      if(typeof initDefaultSavings === 'function') initDefaultSavings();
+      showToast('👋 새 계정입니다. 데이터를 입력해주세요.');
       return;
     }
     const data = snap.data();
@@ -94,7 +98,6 @@ async function loadFromFirebase() {
   } catch(e) {
     showToast('❌ 불러오기 실패: ' + e.message);
     console.error(e);
-    loadFromStorage();
   }
 }
 
