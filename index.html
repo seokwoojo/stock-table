@@ -93,7 +93,7 @@
 
   <!-- ─── SECTION 1: 핵심 요약 ─── -->
   <div class="section-title">핵심 요약</div>
-  <div class="grid-4">
+  <div style="display:grid;grid-template-columns:1fr 1fr 1fr 2.5fr;gap:16px;margin-bottom:24px;">
     <div class="summary-card">
       <div class="card-label">월 급여 (세후)</div>
       <div style="display:flex;align-items:center;gap:4px;margin-top:4px;">
@@ -110,27 +110,41 @@
       <div class="card-sub" id="s-saveRate"></div>
     </div>
     <div class="summary-card">
-      <div class="card-label">현재 총 자산</div>
+      <div class="card-label">현재 투자 자산</div>
       <div class="card-value neutral" id="s-asset">—</div>
       <div class="card-sub" id="s-assetSub"></div>
     </div>
-    <div class="summary-card">
-      <div class="card-label">메모</div>
+    <div class="summary-card" style="padding:16px 20px;">
+      <div class="card-label" style="margin-bottom:6px;">📋 메모</div>
       <textarea id="memo-area" spellcheck="false"
         oninput="saveMemo(this.value)"
-        placeholder="💡 절세 계좌 가이드
+        placeholder="💡 절세 계좌 핵심 가이드
 
-ISA: 연 2,000만원 납입 절세 계좌, 과세이연, 배당금 비과세 9.9%~
-→ 추천 ETF: 국내 배당주, 국내 상장 해외주식 배당
+[ ISA ]  연 2,000만원 납입 / 의무 3년
+• 비과세: 일반형 200만원, 서민형 400만원 (총급여 5,000만원↓)
+• 초과분 9.9% 분리과세 / 손익통산 적용
+• 만기 후 60일 내 연금계좌 이체 → 이체금액 10% 추가 세액공제 (최대 300만원)
+• 추천: 국내 고배당주 ETF, 국내상장 해외배당주 ETF, 국내 커버드콜 ETF
 
-연금저축: 연 600만원 세액공제
-→ 추천 ETF: 국내 배당주, 국내 상장 해외주식 배당
+[ 연금저축 ]  연 600만원 세액공제
+• 공제율: 연봉 5,500만원↓ 16.5%(최대 99만원 환급) / 초과 13.2%
+• 과세이연: 운용수익 세금을 연금수령 시까지 유예 → 복리 극대화
+• 연금수령 시 3.3~5.5% 저율과세 / 중도해지 시 16.5% 기타소득세
+• 추천: 국내상장 해외지수 ETF, 국내 고배당주 ETF, 국내 커버드콜 ETF
 
-IRP: 연 300만원 세액공제
-→ 추천 ETF: TDF
+[ IRP ]  연금저축 합산 연 900만원 세액공제
+• 과세이연 동일 적용 / 위험자산 70% 제한 (안전자산 30% 필수)
+• 중도인출 거의 불가 / 퇴직금 자동 이체
+• 추천: TDF, 채권혼합형 ETF, 국내 커버드콜 ETF (비위험자산 분류)
 
-CMA: 국내 커버드콜 ETF"
-        style="width:100%;height:120px;background:transparent;border:none;color:var(--text2);font-size:11px;font-family:var(--mono);resize:none;outline:none;line-height:1.6;"></textarea>
+[ CMA ]  수시 입출금 / 파킹통장
+• 절세 혜택 없음 (배당소득 15.4% 과세)
+• 추천: 국내 커버드콜 ETF, 단기채 ETF
+
+[ 납입 순서 ]
+① 연금저축 600 → ② IRP 300 → ③ ISA 최대납입
+→ ISA 만기 후 연금계좌 이체 시 세액공제 추가 300만원"
+        style="width:100%;height:130px;background:transparent;border:none;color:var(--text2);font-size:10.5px;font-family:var(--mono);resize:vertical;outline:none;line-height:1.55;"></textarea>
     </div>
   </div>
 
