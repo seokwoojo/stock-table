@@ -54,36 +54,43 @@ function recalcAll(){
   const priceRate = totCost ? (totPnl/totCost*100).toFixed(2)   : 0;
   const totalRate = totCost ? (totTotal/totCost*100).toFixed(2) : 0;
 
+  // DOM이 숨겨진 상태(로그인 전)면 업데이트 스킵
+  if(!document.getElementById('s-salary')) return;
+
   // Header cards
   document.getElementById('s-salary').textContent = salary ? fmtKRW(salary) : '—';
 
   const msEl = document.getElementById('s-monthSave');
-  msEl.textContent = fmtKRW(monthSave);
+  if(msEl) msEl.textContent = fmtKRW(monthSave);
   const saveRate = salary ? Math.min((monthSave/salary*100),100) : 0;
   const saveRatePct = salary ? (monthSave/salary*100).toFixed(1) : 0;
-  document.getElementById('s-saveProg').style.width = saveRate + '%';
-  document.getElementById('s-saveRate').textContent = `저축률 ${saveRatePct}%`;
+  const spEl = document.getElementById('s-saveProg'); if(spEl) spEl.style.width = saveRate + '%';
+  const srEl = document.getElementById('s-saveRate'); if(srEl) srEl.textContent = `저축률 ${saveRatePct}%`;
 
-  document.getElementById('s-asset').textContent = totalAsset ? fmtKRW(totalAsset) : '—';
-  if(totalPrincipal > 0 && totalAsset > 0){
-    const assetPnl = totalAsset - totalPrincipal;
-    const assetRate = (assetPnl/totalPrincipal*100).toFixed(2);
-    document.getElementById('s-assetSub').textContent =
-      `원금 ${fmtKRW(totalPrincipal)} / ${assetPnl>=0?'+':''}${assetRate}%`;
-  } else {
-    document.getElementById('s-assetSub').textContent = '';
+  const saEl = document.getElementById('s-asset'); if(saEl) saEl.textContent = totalAsset ? fmtKRW(totalAsset) : '—';
+  const subEl = document.getElementById('s-assetSub');
+  if(subEl){
+    if(totalPrincipal > 0 && totalAsset > 0){
+      const assetPnl = totalAsset - totalPrincipal;
+      const assetRate = (assetPnl/totalPrincipal*100).toFixed(2);
+      subEl.textContent = `원금 ${fmtKRW(totalPrincipal)} / ${assetPnl>=0?'+':''}${assetRate}%`;
+    } else {
+      subEl.textContent = '';
+    }
   }
 
   const profEl = document.getElementById('s-profit');
-  profEl.textContent = totTotal ? (totTotal>0?'+':'')+fmtKRW(totTotal) : '—';
-  profEl.className = 'card-value ' + (totTotal>0?'pos':totTotal<0?'neg':'');
-  document.getElementById('s-profitRate').textContent =
-    `총 ${totTotal>0?'+':''}${totalRate}%  |  주가 ${totPnl>0?'+':''}${priceRate}%`;
+  if(profEl){
+    profEl.textContent = totTotal ? (totTotal>0?'+':'')+fmtKRW(totTotal) : '—';
+    profEl.className = 'card-value ' + (totTotal>0?'pos':totTotal<0?'neg':'');
+  }
+  const prEl = document.getElementById('s-profitRate');
+  if(prEl) prEl.textContent = `총 ${totTotal>0?'+':''}${totalRate}%  |  주가 ${totPnl>0?'+':''}${priceRate}%`;
 
   // Total bar
-  document.getElementById('tb-monthTotal').textContent = fmtKRW(monthSave);
-  document.getElementById('tb-yearTotal').textContent = fmtKRW(monthSave*12);
-  document.getElementById('tb-saveRate').textContent = salary ? saveRatePct+'%' : '—';
+  const tbm = document.getElementById('tb-monthTotal'); if(tbm) tbm.textContent = fmtKRW(monthSave);
+  const tby = document.getElementById('tb-yearTotal');  if(tby) tby.textContent = fmtKRW(monthSave*12);
+  const tbs = document.getElementById('tb-saveRate');   if(tbs) tbs.textContent = salary ? saveRatePct+'%' : '—';
 }
 
 // ─────────────── LOCAL STORAGE ───────────────
