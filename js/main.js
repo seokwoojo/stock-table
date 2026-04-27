@@ -80,6 +80,27 @@ function recalcAll(){
   const tbm = document.getElementById('tb-monthTotal'); if(tbm) tbm.textContent = fmtKRW(monthSave);
   const tby = document.getElementById('tb-yearTotal');  if(tby) tby.textContent = fmtKRW(monthSave*12);
   const tbs = document.getElementById('tb-saveRate');   if(tbs) tbs.textContent = salary ? saveRatePct+'%' : '—';
+
+  // 월 배당 예상금액 — 모든 포트폴리오 종목의 예상배당금 월 환산 합계
+  let totalMonthDiv = 0;
+  state.portfolios.forEach(p => {
+    p.stocks.forEach(s => {
+      const pos = calcPosition(s);
+      const qty = pos.qty || s.baseQty || 0;
+      const val = qty * s.curPrice;
+      const annualDiv = s.dividend || 0;
+      const cycle = s.dividendCycle || '연';
+      let monthlyDiv = 0;
+      if(cycle === '월')       monthlyDiv = val * (annualDiv/100/12);
+      else if(cycle === '분기') monthlyDiv = val * (annualDiv/100/4/3); // 분기 → 월 환산
+      else                     monthlyDiv = val * (annualDiv/100/12);   // 연 → 월 환산
+      totalMonthDiv += monthlyDiv;
+    });
+  });
+  const mdEl  = document.getElementById('s-monthDiv');
+  const mdSub = document.getElementById('s-monthDivSub');
+  if(mdEl)  { mdEl.textContent = totalMonthDiv > 0 ? fmtKRW(Math.round(totalMonthDiv)) : '—'; }
+  if(mdSub) { mdSub.textContent = totalMonthDiv > 0 ? `연 ${fmtKRW(Math.round(totalMonthDiv*12))}` : ''; }
 }
 
 // ─────────────── LOCAL STORAGE ───────────────
