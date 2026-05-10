@@ -71,7 +71,6 @@ function renderSavings(){
       const p = linkedPortfolio;
       principal = p.stocks.reduce((a,st)=>{
         const pos = calcPosition(st);
-        // baseQty나 trades가 있으면 calcPosition, 없으면 직접 입력값 사용
         const qty      = pos.qty      || st.baseQty      || 0;
         const avgPrice = pos.avgPrice || st.baseAvgPrice || 0;
         return a + qty * avgPrice;
@@ -83,7 +82,9 @@ function renderSavings(){
       }, 0);
       const real = p.stocks.reduce((a,st)=>{ const pos=calcPosition(st); return a+pos.realizedPnl; },0);
       const div  = p.stocks.reduce((a,st)=>a+(st.accumulatedDividend||0),0);
-      current = val + real + div;
+      // current = 원금 + 미실현수익 + 실현수익 + 배당 (포트폴리오 헤더와 동일한 방식)
+      const unreal = val - principal;
+      current = principal + unreal + real + div;
     } else {
       const m = maturityEntry;
       if(m && m.startDate && s.monthlyAmt > 0){

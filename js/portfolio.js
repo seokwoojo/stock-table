@@ -378,8 +378,9 @@ function renderPortfolios(){
   ensureFixedPortfolios();
   const sec = document.getElementById('portfolio-section');
   sec.innerHTML = state.portfolios.map(p => {
-    const totCost   = p.stocks.reduce((a,s)=>{ const pos=calcPosition(s); const q=pos.qty||s.qty||0; const ap=pos.avgPrice||s.avgPrice||0; return a+q*ap; },0);
-    const totVal    = p.stocks.reduce((a,s)=>{ const pos=calcPosition(s); const q=pos.qty||s.qty||0; return a+q*s.curPrice; },0);
+    // 숨긴 종목 포함 전체 계산 (수익에 반영)
+    const totCost   = p.stocks.reduce((a,s)=>{ const pos=calcPosition(s); const q=pos.qty||s.baseQty||0; const ap=pos.avgPrice||s.baseAvgPrice||0; return a+q*ap; },0);
+    const totVal    = p.stocks.reduce((a,s)=>{ const pos=calcPosition(s); const q=pos.qty||s.baseQty||0; return a+q*s.curPrice; },0);
     const totReal   = p.stocks.reduce((a,s)=>{ const pos=calcPosition(s); return a+pos.realizedPnl; },0);
     const totDiv    = p.stocks.reduce((a,s)=>a+(s.accumulatedDividend||0),0);
     const totUnreal = totVal - totCost;
@@ -387,6 +388,8 @@ function renderPortfolios(){
     const pnlRate   = totCost ? (totUnreal/totCost*100).toFixed(2) : 0;
     const totRate   = totCost ? (totTotal/totCost*100).toFixed(2)  : 0;
     const isFixed   = !!p.fixed;
+    const hiddenCount = p.stocks.filter(s=>s.hidden).length;
+    const showHidden  = p.showHidden || false;
 
     // 배지 라벨 줄바꿈 처리
     const nameEl = isFixed
@@ -416,7 +419,9 @@ function renderPortfolios(){
 
     const stockRows = p.stocks.length === 0
       ? `<tr class="empty-row"><td colspan="16">종목이 없습니다 — 아래 버튼으로 추가하세요</td></tr>`
-      : p.stocks.map(s => {
+      : p.stocks
+          .filter(s => showHidden || !s.hidden)
+          .map(s => {
           const pos      = calcPosition(s);
           const qty      = pos.qty      || s.baseQty      || 0;
           const avgPrice = pos.avgPrice || s.baseAvgPrice || 0;
@@ -493,7 +498,16 @@ function renderPortfolios(){
             <td class="mono ${accDiv>0?'pos':''}">${accDiv>0?fmtKRW(accDiv):'—'}</td>
             <td><span class="badge ${isTotPos?'badge-green':'badge-red'}">${isTotPos?'+':''}${tr2}%</span></td>
             <td>${mkNum(s.monthlyBuy, `updateStock(${p.id},${s.id},'monthlyBuy',v)`)}</td>
-            <td><button class="btn btn-danger" onclick="removeStock(${p.id},${s.id})">✕</button></td>
+            <td>
+              <div style="display:flex;gap:4px;">
+                <button title="${s.hidden?'표시':'숨김'}"
+                  onclick="toggleHideStock(${p.id},${s.id})"
+                  style="background:${s.hidden?'var(--accent-dim)':'var(--surface2)'};border:1px solid var(--border);color:${s.hidden?'var(--accent)':'var(--muted)'};border-radius:2px;padding:3px 7px;cursor:pointer;font-size:12px;">
+                  ${s.hidden?'👁':'🙈'}
+                </button>
+                <button class="btn btn-danger" onclick="removeStock(${p.id},${s.id})">✕</button>
+              </div>
+            </td>
           </tr>`;
         }).join('');
 
@@ -509,7 +523,9 @@ function renderPortfolios(){
           <div class="account-stat">
             <div class="label">종목 수</div>
             <div class="val" style="display:flex;align-items:center;gap:8px;">
-              ${p.stocks.length}종목
+              ${p.stocks.filter(s=>!s.hidden).length}종목
+              ${hiddenCount>0?`<button onclick="event.stopPropagation();toggleShowHidden(${p.id})" style="font-family:var(--mono);font-size:10px;padding:2px 8px;background:var(--surface2);border:1px solid var(--border);color:var(--muted);border-radius:2px;cursor:pointer;">${showHidden?'숨김닫기':'숨김'+hiddenCount+'개'}
+              </button>`:''}
               <button class="trade-btn trade-btn-buy" style="padding:3px 10px;font-size:10px;" onclick="event.stopPropagation();openTradeModal(${p.id})">거래</button>
             </div>
           </div>
@@ -604,6 +620,23 @@ async function refreshAllPrices(){
   } catch(e) {
     showToast('❌ 업데이트 실패: ' + e.message);
   }
+}
+
+function toggleHideStock(pid, sid){
+  const p = state.portfolios.find(x=>x.id===pid);
+  if(!p) return;
+  const s = p.stocks.find(x=>x.id===sid);
+  if(!s) return;
+  s.hidden = !s.hidden;
+  renderPortfolios(); renderSavings(); recalcAll(); scheduleSave();
+  showToast(s.hidden ? '🙈 종목 숨김' : '👁 종목 표시');
+}
+
+function toggleShowHidden(pid){
+  const p = state.portfolios.find(x=>x.id===pid);
+  if(!p) return;
+  p.showHidden = !p.showHidden;
+  renderPortfolios();
 }
 
 function addDividend(pid, sid){

@@ -83,6 +83,10 @@
         <span id="auth-user-info"></span>
         <button id="auth-logout-btn" class="btn btn-ghost" onclick="googleLogout()">로그아웃</button>
       </div>
+      <!-- 스냅샷 버튼들 -->
+      <div id="snapshot-btns" style="display:flex;gap:6px;align-items:center;"></div>
+      <button class="btn btn-ghost" style="font-size:10px;padding:6px 10px;white-space:nowrap;"
+        onclick="saveYearSnapshot(new Date().getFullYear())">📸 연도저장</button>
       <button class="btn btn-ghost" style="font-size:10px;padding:6px 10px;white-space:nowrap;" onclick="refreshAllPrices()">🔄 시세갱신</button>
       <button class="btn btn-ghost" onclick="exportJSON()">📥 내보내기</button>
       <button class="btn btn-ghost" onclick="importJSON()">📤 불러오기</button>
