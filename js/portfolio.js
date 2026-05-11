@@ -58,10 +58,14 @@ function addStock(portfolioId){
 function removeStock(portfolioId, stockId){
   const p = state.portfolios.find(x=>x.id===portfolioId);
   if(!p) return;
+  const s = p.stocks.find(x=>x.id===stockId);
+  const name = s?.name || '이 종목';
+  if(!confirm(`"${name}"을 삭제할까요?\n삭제된 종목은 복구할 수 없습니다.`)) return;
   p.stocks = p.stocks.filter(x=>x.id!==stockId);
   renderPortfolios();
   renderSavings();
   recalcAll();
+  scheduleSave();
 }
 
 function addPortfolioAccount(){
@@ -89,6 +93,8 @@ function addPortfolioAccount(){
 function removePortfolio(id){
   const p = state.portfolios.find(x=>x.id===id);
   if(p && p.fixed){ showToast('⚠️ 기본 계좌는 삭제할 수 없습니다'); return; }
+  const name = p?.accountName || '이 계좌';
+  if(!confirm(`"${name}"을 삭제할까요?\n계좌 내 모든 종목도 함께 삭제됩니다.`)) return;
   state.portfolios = state.portfolios.filter(x=>x.id!==id);
   state.savings = state.savings.filter(x=>x.id!==id);
   renderAll();
@@ -420,7 +426,7 @@ function renderPortfolios(){
     const stockRows = p.stocks.length === 0
       ? `<tr class="empty-row"><td colspan="16">종목이 없습니다 — 아래 버튼으로 추가하세요</td></tr>`
       : p.stocks
-          .filter(s => showHidden || !s.hidden)
+          .filter(s => !s.hidden)
           .map(s => {
           const pos      = calcPosition(s);
           const qty      = pos.qty      || s.baseQty      || 0;
@@ -635,8 +641,61 @@ function toggleHideStock(pid, sid){
 function toggleShowHidden(pid){
   const p = state.portfolios.find(x=>x.id===pid);
   if(!p) return;
-  p.showHidden = !p.showHidden;
-  renderPortfolios();
+  const hidden = p.stocks.filter(s=>s.hidden);
+  if(!hidden.length){ showToast('숨긴 종목이 없습니다'); return; }
+
+  document.getElementById('hidden-modal-overlay')?.remove();
+
+  const overlay = document.createElement('div');
+  overlay.id = 'hidden-modal-overlay';
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:9000;display:flex;align-items:center;justify-content:center;';
+
+  const rows = hidden.map(s => `
+    <div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--border);">
+      <input type="checkbox" id="hc-${s.id}" value="${s.id}"
+        style="width:16px;height:16px;cursor:pointer;accent-color:var(--accent);">
+      <label for="hc-${s.id}" style="flex:1;cursor:pointer;">
+        <span style="font-family:var(--mono);font-size:13px;color:var(--text);">${s.name||'(이름 없음)'}</span>
+        <span style="font-family:var(--mono);font-size:11px;color:var(--muted);margin-left:8px;">${s.code||''}</span>
+      </label>
+    </div>`).join('');
+
+  overlay.innerHTML = `
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:24px 28px;min-width:320px;max-width:420px;width:90%;position:relative;">
+      <div style="font-size:13px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:var(--text3);margin-bottom:16px;">🙈 숨긴 종목</div>
+      <div style="margin-bottom:16px;">${rows}</div>
+      <div style="display:flex;gap:8px;justify-content:flex-end;">
+        <button onclick="document.getElementById('hidden-modal-overlay').remove()"
+          style="font-family:var(--mono);font-size:11px;padding:6px 14px;background:var(--surface2);border:1px solid var(--border);color:var(--text2);border-radius:2px;cursor:pointer;">닫기</button>
+        <button onclick="unhideSelected(${pid})"
+          style="font-family:var(--mono);font-size:11px;padding:6px 14px;background:var(--accent-dim);border:1px solid rgba(0,230,118,0.3);color:var(--accent);border-radius:2px;cursor:pointer;font-weight:700;">숨김 해제</button>
+      </div>
+      <button onclick="document.getElementById('hidden-modal-overlay').remove()"
+        style="position:absolute;top:12px;right:14px;background:none;border:none;color:var(--muted);font-size:18px;cursor:pointer;">✕</button>
+    </div>`;
+
+  document.body.appendChild(overlay);
+  overlay.addEventListener('click', e => { if(e.target===overlay) overlay.remove(); });
+}
+
+function unhideSelected(pid){
+  const p = state.portfolios.find(x=>x.id===pid);
+  if(!p) return;
+  const checked = [...document.querySelectorAll('#hidden-modal-overlay input[type=checkbox]:checked')]
+    .map(el => Number(el.value));
+  if(!checked.length){ showToast('⚠️ 해제할 종목을 선택하세요'); return; }
+  checked.forEach(sid => {
+    const s = p.stocks.find(x=>x.id===sid);
+    if(s){
+      s.hidden = false;
+      // 배열 맨 뒤로 이동
+      p.stocks.splice(p.stocks.indexOf(s), 1);
+      p.stocks.push(s);
+    }
+  });
+  document.getElementById('hidden-modal-overlay')?.remove();
+  renderPortfolios(); renderSavings(); recalcAll(); scheduleSave();
+  showToast(`✅ ${checked.length}개 종목 숨김 해제`);
 }
 
 function addDividend(pid, sid){
