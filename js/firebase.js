@@ -142,6 +142,9 @@ onAuthStateChanged(auth, async user => {
   currentUser = user;
   updateAuthUI(user);
   if (user) {
+    // 완전 초기화 후 Firebase 로드
+    state.savings = []; state.portfolios = []; state.maturity = [];
+    state.memo = ''; idCnt = 1;
     await loadFromFirebase();
     renderAll();
     if(state.gasUrl) setTimeout(() => refreshAllPrices(), 1500);
