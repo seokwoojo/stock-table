@@ -117,6 +117,14 @@
       <div class="card-label">현재 투자 자산</div>
       <div class="card-value neutral" id="s-asset">—</div>
       <div class="card-sub" id="s-assetSub"></div>
+      <div style="display:flex;align-items:center;gap:6px;margin-top:8px;">
+        <span style="font-size:10px;color:var(--muted);">연 수익률</span>
+        <input type="text" inputmode="numeric" id="proj-rate" placeholder="10"
+          oninput="recalcAll()"
+          style="width:40px;background:transparent;border:none;border-bottom:1px dashed var(--accent);font-family:var(--mono);font-size:13px;font-weight:600;color:var(--accent);padding:1px 0;outline:none;text-align:center;">
+        <span style="font-size:10px;color:var(--muted);">%</span>
+      </div>
+      <div id="s-asset-proj" style="margin-top:6px;"></div>
     </div>
     <div class="summary-card" style="min-height:90px;">
       <div class="card-label">월 배당 예상금액</div>

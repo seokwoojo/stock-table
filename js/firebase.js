@@ -44,6 +44,7 @@ async function saveToFirebase() {
   try {
     const data = {
       salary:     document.getElementById('salary')?.value    || '',
+      projRate:   document.getElementById('proj-rate')?.value || '',
       savings:    state.savings,
       portfolios: state.portfolios,
       maturity:   state.maturity,
@@ -81,7 +82,9 @@ async function loadFromFirebase() {
     }
     const data = snap.data();
     const salEl = document.getElementById('salary');
+    const prEl  = document.getElementById('proj-rate');
     if(salEl && data.salary)    salEl.value   = data.salary;
+    if(prEl  && data.projRate)  prEl.value    = data.projRate;
     if(data.savings)    state.savings    = data.savings;
     if(data.portfolios) state.portfolios = data.portfolios;
     if(data.maturity)   state.maturity   = data.maturity;

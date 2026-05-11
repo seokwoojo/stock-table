@@ -77,6 +77,34 @@ function recalcAll(){
     }
   }
 
+  // 복리 수익 예측 (연 수익률 입력, 월 저축 추가 매수)
+  const projEl = document.getElementById('s-asset-proj');
+  if(projEl && totalAsset > 0){
+    const rateInput = document.getElementById('proj-rate');
+    const annualRate = rateInput ? (parseFloat(rateInput.value) || 10) / 100 : 0.10;
+    const monthlyRate = annualRate / 12;
+    const rateLabel = rateInput ? (parseFloat(rateInput.value) || 10) : 10;
+    const fv = (years) => {
+      const assetGrowth   = totalAsset * Math.pow(1 + annualRate, years);
+      const savingsGrowth = monthSave > 0 && monthlyRate > 0
+        ? monthSave * (Math.pow(1 + monthlyRate, years * 12) - 1) / monthlyRate
+        : monthSave * years * 12;
+      return Math.round(assetGrowth + savingsGrowth);
+    };
+    projEl.innerHTML = `
+      <div style="font-size:9px;color:var(--muted);letter-spacing:1px;margin-bottom:4px;">연 ${rateLabel}% 복리 + 월 ${fmtKRW(monthSave)} 적립 시</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:3px 10px;">
+        <div style="font-size:10px;color:var(--text3);">5년 후</div>
+        <div style="font-family:var(--mono);font-size:10px;color:var(--accent);">${fmtKRW(fv(5))}</div>
+        <div style="font-size:10px;color:var(--text3);">10년 후</div>
+        <div style="font-family:var(--mono);font-size:10px;color:var(--accent);">${fmtKRW(fv(10))}</div>
+        <div style="font-size:10px;color:var(--text3);">20년 후</div>
+        <div style="font-family:var(--mono);font-size:10px;color:var(--accent);">${fmtKRW(fv(20))}</div>
+        <div style="font-size:10px;color:var(--text3);">30년 후</div>
+        <div style="font-family:var(--mono);font-size:10px;color:var(--accent);">${fmtKRW(fv(30))}</div>
+      </div>`;
+  }
+
   const tbm = document.getElementById('tb-monthTotal'); if(tbm) tbm.textContent = fmtKRW(monthSave);
   const tby = document.getElementById('tb-yearTotal');  if(tby) tby.textContent = fmtKRW(monthSave*12);
   const tbs = document.getElementById('tb-saveRate');   if(tbs) tbs.textContent = salary ? saveRatePct+'%' : '—';
