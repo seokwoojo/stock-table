@@ -67,6 +67,7 @@ function renderSavings(){
 
     // 수치 계산
     let principal = 0, current = 0;
+    let totalGain = 0, totalLoss = 0; // 종목별 이득/손실 분리
     if(isStock){
       const p = linkedPortfolio;
       principal = p.stocks.reduce((a,st)=>{
@@ -82,9 +83,20 @@ function renderSavings(){
       }, 0);
       const real = p.stocks.reduce((a,st)=>{ const pos=calcPosition(st); return a+pos.realizedPnl; },0);
       const div  = p.stocks.reduce((a,st)=>a+(st.accumulatedDividend||0),0);
-      // current = 원금 + 미실현수익 + 실현수익 + 배당 (포트폴리오 헤더와 동일한 방식)
       const unreal = val - principal;
       current = principal + unreal + real + div;
+
+      // 종목별 이득/손실 분리 (미실현 + 실현 + 배당 합산 기준)
+      p.stocks.forEach(st => {
+        const pos = calcPosition(st);
+        const qty      = (pos.qty !== undefined) ? pos.qty : (st.baseQty || 0);
+        const avgPrice = (pos.avgPrice !== undefined) ? pos.avgPrice : (st.baseAvgPrice || 0);
+        const stVal    = qty * st.curPrice;
+        const stCost   = qty * avgPrice;
+        const stPnl    = (stVal - stCost) + pos.realizedPnl + (st.accumulatedDividend||0);
+        if(stPnl >= 0) totalGain += stPnl;
+        else           totalLoss += stPnl;
+      });
     } else {
       const m = maturityEntry;
       if(m && m.startDate && s.monthlyAmt > 0){
@@ -134,9 +146,20 @@ function renderSavings(){
         </div>
       </div>
       ${(rate !== null && current > 0) ? `
-      <div style="display:flex;align-items:center;justify-content:space-between;background:${isPos?'var(--red-dim)':'var(--cyan-dim)'};border-radius:2px;padding:5px 8px;margin-bottom:10px;">
+      <div style="display:flex;align-items:center;justify-content:space-between;background:${isPos?'var(--red-dim)':'var(--cyan-dim)'};border-radius:2px;padding:5px 8px;margin-bottom:${isStock && (totalGain!==0||totalLoss!==0)?'4':'10'}px;">
         <span style="font-size:10px;color:var(--text3);letter-spacing:1px;">총 수익률</span>
         <span style="font-family:var(--mono);font-size:12px;font-weight:700;color:${isPos?'var(--red)':'var(--cyan)'};">${isPos?'+':''}${rate}% (${isPos?'+':''}${fmtKRW(pnl)})</span>
+      </div>` : ''}
+      ${isStock && (totalGain!==0||totalLoss!==0) ? `
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:4px;margin-bottom:10px;">
+        <div style="background:var(--red-dim);border-radius:2px;padding:4px 8px;">
+          <div style="font-size:9px;color:var(--muted);margin-bottom:2px;">총 이득</div>
+          <div style="font-family:var(--mono);font-size:11px;font-weight:700;color:var(--red);">+${fmtKRW(Math.round(totalGain))}</div>
+        </div>
+        <div style="background:var(--cyan-dim);border-radius:2px;padding:4px 8px;">
+          <div style="font-size:9px;color:var(--muted);margin-bottom:2px;">총 손실</div>
+          <div style="font-family:var(--mono);font-size:11px;font-weight:700;color:var(--cyan);">${totalLoss!==0?fmtKRW(Math.round(totalLoss)):'—'}</div>
+        </div>
       </div>` : ''}
     </div>`;
   }).join('');
