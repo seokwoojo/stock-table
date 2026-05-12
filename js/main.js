@@ -16,13 +16,13 @@ function recalcAll(){
       const p = linkedPortfolio;
       const principal = p.stocks.reduce((a,st)=>{
         const pos = calcPosition(st);
-        const qty      = pos.qty      || st.baseQty      || 0;
-        const avgPrice = pos.avgPrice || st.baseAvgPrice || 0;
+        const qty      = (pos.qty !== undefined) ? pos.qty : (st.baseQty || 0);
+        const avgPrice = (pos.avgPrice !== undefined) ? pos.avgPrice : (st.baseAvgPrice || 0);
         return a + qty * avgPrice;
       }, 0);
       const val  = p.stocks.reduce((a,st)=>{
         const pos = calcPosition(st);
-        const qty = pos.qty || st.baseQty || 0;
+        const qty = (pos.qty !== undefined) ? pos.qty : (st.baseQty || 0);
         return a + qty * st.curPrice;
       }, 0);
       const real = p.stocks.reduce((a,st)=>{ const pos=calcPosition(st); return a+pos.realizedPnl; },0);

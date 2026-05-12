@@ -121,8 +121,8 @@ function updateStock(pid, sid, field, value){
 
 function updateStockCells(p, s){
   const pos      = calcPosition(s);
-  const qty      = pos.qty      || s.baseQty      || 0;
-  const avgPrice = pos.avgPrice || s.baseAvgPrice || 0;
+  const qty      = pos.qty      !== undefined ? pos.qty      : (s.baseQty      || 0);
+  const avgPrice = pos.avgPrice !== undefined ? pos.avgPrice : (s.baseAvgPrice || 0);
   const realPnl  = pos.realizedPnl;
   const val      = qty * s.curPrice;
   const cost     = qty * avgPrice;
@@ -385,8 +385,8 @@ function renderPortfolios(){
   const sec = document.getElementById('portfolio-section');
   sec.innerHTML = state.portfolios.map(p => {
     // 숨긴 종목 포함 전체 계산 (수익에 반영)
-    const totCost   = p.stocks.reduce((a,s)=>{ const pos=calcPosition(s); const q=pos.qty||s.baseQty||0; const ap=pos.avgPrice||s.baseAvgPrice||0; return a+q*ap; },0);
-    const totVal    = p.stocks.reduce((a,s)=>{ const pos=calcPosition(s); const q=pos.qty||s.baseQty||0; return a+q*s.curPrice; },0);
+    const totCost   = p.stocks.reduce((a,s)=>{ const pos=calcPosition(s); const q=(pos.qty!==undefined)?pos.qty:(s.baseQty||0); const ap=(pos.avgPrice!==undefined)?pos.avgPrice:(s.baseAvgPrice||0); return a+q*ap; },0);
+    const totVal    = p.stocks.reduce((a,s)=>{ const pos=calcPosition(s); const q=(pos.qty!==undefined)?pos.qty:(s.baseQty||0); return a+q*s.curPrice; },0);
     const totReal   = p.stocks.reduce((a,s)=>{ const pos=calcPosition(s); return a+pos.realizedPnl; },0);
     const totDiv    = p.stocks.reduce((a,s)=>a+(s.accumulatedDividend||0),0);
     const totUnreal = totVal - totCost;
@@ -429,8 +429,8 @@ function renderPortfolios(){
           .filter(s => !s.hidden)
           .map(s => {
           const pos      = calcPosition(s);
-          const qty      = pos.qty      || s.baseQty      || 0;
-          const avgPrice = pos.avgPrice || s.baseAvgPrice || 0;
+          const qty      = (pos.qty      !== undefined) ? pos.qty      : (s.baseQty      || 0);
+          const avgPrice = (pos.avgPrice !== undefined) ? pos.avgPrice : (s.baseAvgPrice || 0);
           const realPnl  = pos.realizedPnl;
           const val      = qty * s.curPrice;
           const cost     = qty * avgPrice;
