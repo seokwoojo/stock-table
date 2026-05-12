@@ -67,7 +67,7 @@ function renderSavings(){
 
     // 수치 계산
     let principal = 0, current = 0;
-    let totalGain = 0, totalLoss = 0; // 종목별 이득/손실 분리
+    let totalGain = 0, totalLoss = 0, realizedGain = 0, realizedLoss = 0, accDivTotal = 0;
     if(isStock){
       const p = linkedPortfolio;
       principal = p.stocks.reduce((a,st)=>{
@@ -86,17 +86,24 @@ function renderSavings(){
       const unreal = val - principal;
       current = principal + unreal + real + div;
 
-      // 종목별 이득/손실 분리 (미실현 + 실현 + 배당 합산 기준)
+      // 종목별 이득/손실 분리
       p.stocks.forEach(st => {
-        const pos = calcPosition(st);
+        const pos      = calcPosition(st);
         const qty      = (pos.qty !== undefined) ? pos.qty : (st.baseQty || 0);
         const avgPrice = (pos.avgPrice !== undefined) ? pos.avgPrice : (st.baseAvgPrice || 0);
         const stVal    = qty * st.curPrice;
         const stCost   = qty * avgPrice;
-        const stPnl    = (stVal - stCost) + pos.realizedPnl + (st.accumulatedDividend||0);
-        if(stPnl >= 0) totalGain += stPnl;
-        else           totalLoss += stPnl;
+        const unreal   = stVal - stCost;
+        const realized = pos.realizedPnl;
+        const accDiv   = st.accumulatedDividend || 0;
+        const totalPnl = unreal + realized + accDiv;
+        if(totalPnl >= 0) totalGain += totalPnl;
+        else              totalLoss += totalPnl;
       });
+      // 실현 이득/손실, 누적 배당 집계
+      realizedGain = p.stocks.reduce((a,st)=>{ const r=calcPosition(st).realizedPnl; return r>0?a+r:a; },0);
+      realizedLoss = p.stocks.reduce((a,st)=>{ const r=calcPosition(st).realizedPnl; return r<0?a+r:a; },0);
+      accDivTotal  = p.stocks.reduce((a,st)=>a+(st.accumulatedDividend||0),0);
     } else {
       const m = maturityEntry;
       if(m && m.startDate && s.monthlyAmt > 0){
@@ -150,15 +157,23 @@ function renderSavings(){
         <span style="font-size:10px;color:var(--text3);letter-spacing:1px;">총 수익률</span>
         <span style="font-family:var(--mono);font-size:12px;font-weight:700;color:${isPos?'var(--red)':'var(--cyan)'};">${isPos?'+':''}${rate}% (${isPos?'+':''}${fmtKRW(pnl)})</span>
       </div>` : ''}
-      ${isStock && (totalGain!==0||totalLoss!==0) ? `
+      ${isStock && (totalGain!==0||totalLoss!==0||realizedGain!==0||accDivTotal!==0) ? `
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:4px;margin-bottom:10px;">
         <div style="background:var(--red-dim);border-radius:2px;padding:4px 8px;">
-          <div style="font-size:9px;color:var(--muted);margin-bottom:2px;">총 이득</div>
-          <div style="font-family:var(--mono);font-size:11px;font-weight:700;color:var(--red);">+${fmtKRW(Math.round(totalGain))}</div>
+          <div style="font-size:9px;color:var(--muted);margin-bottom:2px;">미실현+실현+배당</div>
+          <div style="font-family:var(--mono);font-size:11px;font-weight:700;color:var(--red);">${totalGain>0?'+':''}${fmtKRW(Math.round(totalGain))}</div>
         </div>
         <div style="background:var(--cyan-dim);border-radius:2px;padding:4px 8px;">
-          <div style="font-size:9px;color:var(--muted);margin-bottom:2px;">총 손실</div>
-          <div style="font-family:var(--mono);font-size:11px;font-weight:700;color:var(--cyan);">${totalLoss!==0?fmtKRW(Math.round(totalLoss)):'—'}</div>
+          <div style="font-size:9px;color:var(--muted);margin-bottom:2px;">실현 손실</div>
+          <div style="font-family:var(--mono);font-size:11px;font-weight:700;color:var(--cyan);">${realizedLoss!==0?fmtKRW(Math.round(realizedLoss)):'—'}</div>
+        </div>
+        <div style="background:var(--red-dim);border-radius:2px;padding:4px 8px;">
+          <div style="font-size:9px;color:var(--muted);margin-bottom:2px;">실현 이득 (배당 제외)</div>
+          <div style="font-family:var(--mono);font-size:11px;font-weight:700;color:var(--red);">${realizedGain>0?'+'+fmtKRW(Math.round(realizedGain)):'—'}</div>
+        </div>
+        <div style="background:var(--accent-dim);border-radius:2px;padding:4px 8px;">
+          <div style="font-size:9px;color:var(--muted);margin-bottom:2px;">누적 배당</div>
+          <div style="font-family:var(--mono);font-size:11px;font-weight:700;color:var(--accent);">${accDivTotal>0?'+'+fmtKRW(Math.round(accDivTotal)):'—'}</div>
         </div>
       </div>` : ''}
     </div>`;
