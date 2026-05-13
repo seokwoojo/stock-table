@@ -92,9 +92,9 @@ function addPortfolioAccount(){
 
 function removePortfolio(id){
   const p = state.portfolios.find(x=>x.id===id);
-  if(p && p.fixed){ showToast('⚠️ 기본 계좌는 삭제할 수 없습니다'); return; }
-  const name = p?.accountName || '이 계좌';
-  if(!confirm(`"${name}"을 삭제할까요?\n계좌 내 모든 종목도 함께 삭제됩니다.`)) return;
+  const name = p?.accountName || p?.type || '이 계좌';
+  const warn = p?.fixed ? `\n⚠️ 기본 계좌입니다. 삭제 시 복구할 수 없습니다.` : '';
+  if(!confirm(`"${name}"을 삭제할까요?${warn}\n계좌 내 모든 종목도 함께 삭제됩니다.`)) return;
   state.portfolios = state.portfolios.filter(x=>x.id!==id);
   state.savings = state.savings.filter(x=>x.id!==id);
   renderAll();
@@ -419,9 +419,7 @@ function renderPortfolios(){
 
     const headerClickAttr = isFixed ? '' : `onclick="toggleAccount(${p.id})"`;
     const chevEl    = isFixed ? '' : `<span class="chevron open" id="chev-${p.id}">▾</span>`;
-    const deleteBtn = isFixed
-      ? `<span style="font-size:10px;font-family:var(--mono);color:var(--text3);padding:4px 8px;opacity:0.5;">고정</span>`
-      : `<button class="btn btn-danger" onclick="event.stopPropagation();removePortfolio(${p.id})" style="padding:4px 8px;">✕</button>`;
+    const deleteBtn = `<button class="btn btn-danger" onclick="event.stopPropagation();removePortfolio(${p.id})" style="padding:4px 8px;">✕</button>`;
 
     const stockRows = p.stocks.length === 0
       ? `<tr class="empty-row"><td colspan="16">종목이 없습니다 — 아래 버튼으로 추가하세요</td></tr>`

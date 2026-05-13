@@ -79,6 +79,8 @@ function updateSavings(id, field, value){
 // 저축 카드에서 적금 삭제 → 만기 일정도 삭제
 function removeSavings(id){
   const s = state.savings.find(x=>x.id===id);
+  const name = s?.name || '이 계좌';
+  if(!confirm(`"${name}"을 삭제할까요?\n이 작업은 되돌릴 수 없습니다.`)) return;
   if(s && s.type === '적금'){
     state.maturity = state.maturity.filter(x=>x.id!==id);
   }
