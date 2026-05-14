@@ -389,7 +389,17 @@
     .grid-2 { grid-template-columns: 1fr; }
     .grid-3 { grid-template-columns: 1fr; }
     header { flex-direction: column; align-items: flex-start; gap: 12px; }
-    .account-header-right { display: none; }
+    /* 모바일: 통계 숨기고 거래/삭제 버튼만 표시 */
+    .account-header-right .account-stat { display: none; }
+    .account-header-right { gap: 8px; flex-wrap: wrap; }
+    /* 거래 모달 모바일 대응 */
+    #trade-modal-overlay > div {
+      width: 95% !important;
+      max-width: 95% !important;
+      padding: 20px 16px !important;
+      max-height: 90vh;
+      overflow-y: auto;
+    }
     /* 핵심 요약 4열 → 1열 */
     .summary-grid-3 { grid-template-columns: 1fr !important; }
   }

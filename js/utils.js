@@ -1,7 +1,7 @@
 // ─────────────── UTILS ───────────────
 const fmtKRW = v => {
   if (!v && v !== 0) return '—';
-  return '₩' + Number(v).toLocaleString('ko-KR');
+  return '₩' + Math.round(Number(v)).toLocaleString('ko-KR');
 };
 const fmtNum = v => v ? Number(v).toLocaleString('ko-KR') : '—';
 const fmtComma = v => (!v && v!==0) ? '' : Number(v).toLocaleString('ko-KR');
