@@ -24,9 +24,6 @@ function calcPosition(s){
 // ─────────────── PORTFOLIO ───────────────
 const FIXED_PORTFOLIO_TYPES = ['ISA','CMA','과세 연금저축','비과세 연금저축','IRP'];
 
-// 사용자가 삭제한 고정 계좌 타입 추적 (세션 유지)
-if(!window._deletedFixedTypes) window._deletedFixedTypes = new Set();
-
 function ensureFixedPortfolios(){
   // 구버전 띄어쓰기 없는 항목 제거 (마이그레이션)
   state.portfolios = state.portfolios.filter(p =>
@@ -35,7 +32,7 @@ function ensureFixedPortfolios(){
 
   FIXED_PORTFOLIO_TYPES.forEach(type => {
     // 사용자가 삭제한 타입은 재생성하지 않음
-    if(window._deletedFixedTypes && window._deletedFixedTypes.has(type)) return;
+    if(state.deletedFixedTypes && state.deletedFixedTypes.includes(type)) return;
     const exists = state.portfolios.find(p => p.fixed && p.type === type);
     if(!exists){
       state.portfolios.unshift({ id:uid(), accountName:type+' 포트폴리오', type, fixed:true, stocks:[] });
@@ -100,8 +97,11 @@ function removePortfolio(id){
   const name = p?.accountName || p?.type || '이 계좌';
   const warn = p?.fixed ? `\n⚠️ 기본 계좌입니다. 삭제 시 복구할 수 없습니다.` : '';
   if(!confirm(`"${name}"을 삭제할까요?${warn}\n계좌 내 모든 종목도 함께 삭제됩니다.`)) return;
-  // 고정 계좌 삭제 시 재생성 방지
-  if(p?.fixed && window._deletedFixedTypes) window._deletedFixedTypes.add(p.type);
+  // 고정 계좌 삭제 시 재생성 방지 — state에 저장
+  if(p?.fixed){
+    if(!state.deletedFixedTypes) state.deletedFixedTypes = [];
+    if(!state.deletedFixedTypes.includes(p.type)) state.deletedFixedTypes.push(p.type);
+  }
   state.portfolios = state.portfolios.filter(x=>x.id!==id);
   state.savings = state.savings.filter(x=>x.id!==id);
   renderAll();
@@ -535,11 +535,10 @@ function renderPortfolios(){
             <div class="label">종목 수</div>
             <div class="val" style="display:flex;align-items:center;gap:8px;">
               ${p.stocks.filter(s=>!s.hidden).length}종목
-              ${hiddenCount>0?`<button onclick="event.stopPropagation();toggleShowHidden(${p.id})" style="font-family:var(--mono);font-size:10px;padding:2px 8px;background:var(--surface2);border:1px solid var(--border);color:var(--muted);border-radius:2px;cursor:pointer;">${showHidden?'숨김닫기':'숨김'+hiddenCount+'개'}
-              </button>`:''}
-              <button class="trade-btn trade-btn-buy" style="padding:3px 10px;font-size:10px;" onclick="event.stopPropagation();openTradeModal(${p.id})">거래</button>
+              ${hiddenCount>0?`<button onclick="event.stopPropagation();toggleShowHidden(${p.id})" style="font-family:var(--mono);font-size:10px;padding:2px 8px;background:var(--surface2);border:1px solid var(--border);color:var(--muted);border-radius:2px;cursor:pointer;">${showHidden?'숨김닫기':'숨김'+hiddenCount+'개'}</button>`:''}
             </div>
           </div>
+          <button class="trade-btn trade-btn-buy" style="padding:3px 10px;font-size:10px;" onclick="event.stopPropagation();openTradeModal(${p.id})">거래</button>
           ${deleteBtn}${chevEl}
         </div>
       </div>

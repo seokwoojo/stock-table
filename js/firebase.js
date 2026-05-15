@@ -50,6 +50,7 @@ async function saveToFirebase() {
       maturity:   state.maturity,
       gasUrl:     state.gasUrl,
       memo:       state.memo || '',
+      deletedFixedTypes: state.deletedFixedTypes || [],
       idCnt,
       updatedAt:  new Date().toISOString(),
     };
@@ -70,6 +71,7 @@ async function loadFromFirebase() {
   state.portfolios = [];
   state.maturity   = [];
   state.memo       = '';
+  state.deletedFixedTypes = [];
   idCnt            = 1;
 
   try {
@@ -85,12 +87,13 @@ async function loadFromFirebase() {
     const prEl  = document.getElementById('proj-rate');
     if(salEl && data.salary)    salEl.value   = data.salary;
     if(prEl  && data.projRate)  prEl.value    = data.projRate;
-    if(data.savings)    state.savings    = data.savings;
-    if(data.portfolios) state.portfolios = data.portfolios;
-    if(data.maturity)   state.maturity   = data.maturity;
-    if(data.gasUrl)     state.gasUrl     = data.gasUrl;
-    if(data.memo)       state.memo       = data.memo;
-    if(data.idCnt)      idCnt            = data.idCnt;
+    if(data.savings)           state.savings           = data.savings;
+    if(data.portfolios)        state.portfolios        = data.portfolios;
+    if(data.maturity)          state.maturity          = data.maturity;
+    if(data.gasUrl)            state.gasUrl            = data.gasUrl;
+    if(data.memo)              state.memo              = data.memo;
+    if(data.deletedFixedTypes) state.deletedFixedTypes = data.deletedFixedTypes;
+    if(data.idCnt)             idCnt                   = data.idCnt;
 
     // 구버전 타입명 마이그레이션
     const typeMap = { '과세연금저축':'과세 연금저축', '비과세연금저축':'비과세 연금저축' };
