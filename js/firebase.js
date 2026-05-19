@@ -13,7 +13,7 @@ import { initializeApp }
   from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js';
 import { getAuth, GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged }
   from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js';
-import { getFirestore, doc, setDoc, getDoc }
+import { getFirestore, doc, setDoc, getDoc, collection, query, orderBy, limit, getDocs }
   from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
 
 const app      = initializeApp(firebaseConfig);
@@ -276,10 +276,12 @@ window.renderSnapshotButtons = renderSnapshotButtons;
 async function loadFearGreed() {
   try {
     // 가장 최근 문서 1개 조회
-    const snapshot = await db.collection('fear_greed_reports')
-      .orderBy('created_at', 'desc')
-      .limit(1)
-      .get();
+    const q = query(
+      collection(db, 'fear_greed_reports'),
+      orderBy('created_at', 'desc'),
+      limit(1)
+    );
+    const snapshot = await getDocs(q);
 
     if(snapshot.empty) return;
 
