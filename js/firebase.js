@@ -284,28 +284,39 @@ async function loadFearGreed() {
     const snapshot = await getDocs(q);
 
     if(snapshot.empty) {
-      // 데이터 없음 — 업데이트 버튼 활성화
       const btn = document.getElementById('fg-update-btn');
-      if(btn) { btn.disabled = false; btn.style.opacity = '1'; btn.textContent = '🔄 업데이트'; }
+      if(btn) { btn.disabled = false; btn.style.opacity = '1'; btn.style.cursor = 'pointer'; btn.textContent = '🔄 업데이트'; }
       return;
     }
 
     const data = snapshot.docs[0].data();
 
-    // 오늘 리포트면 버튼 비활성화
+    // 버튼 활성화 여부 결정
     const today = new Date().toISOString().slice(0, 10);
+    const dayOfWeek = new Date().getDay(); // 0=일, 6=토
+    const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
+
+    // 이번 주 금요일 날짜 계산
+    const now = new Date();
+    const diffToFri = (dayOfWeek === 0) ? -2 : (dayOfWeek === 6) ? -1 : 0;
+    const friday = new Date(now);
+    friday.setDate(now.getDate() + diffToFri);
+    const fridayStr = friday.toISOString().slice(0, 10);
+
     const btn = document.getElementById('fg-update-btn');
     if(btn) {
-      if(data.date === today) {
-        btn.disabled = true;
-        btn.style.opacity = '0.4';
-        btn.style.cursor = 'not-allowed';
-        btn.textContent = '✅ 오늘 완료';
+      if(isWeekend && data.date === fridayStr) {
+        // 주말인데 금요일 데이터 있음 → 비활성화
+        btn.disabled = true; btn.style.opacity = '0.4';
+        btn.style.cursor = 'not-allowed'; btn.textContent = '✅ 이번 주 완료';
+      } else if(!isWeekend && data.date === today) {
+        // 평일인데 오늘 데이터 있음 → 비활성화
+        btn.disabled = true; btn.style.opacity = '0.4';
+        btn.style.cursor = 'not-allowed'; btn.textContent = '✅ 오늘 완료';
       } else {
-        btn.disabled = false;
-        btn.style.opacity = '1';
-        btn.style.cursor = 'pointer';
-        btn.textContent = '🔄 업데이트';
+        // 그 외 → 활성화
+        btn.disabled = false; btn.style.opacity = '1';
+        btn.style.cursor = 'pointer'; btn.textContent = '🔄 업데이트';
       }
     }
 
@@ -419,9 +430,14 @@ function parseFearGreed(raw) {
 }
 
 // Claude API 호출
-async function callClaudeForFG(d, apiKey) {
+async function callClaudeForFG(d, apiKey, history=[]) {
   const diff    = Math.round((d.score - d.prev_close) * 10) / 10;
   const diffStr = diff >= 0 ? `▲${diff}` : `▼${Math.abs(diff)}`;
+
+  const historyText = history.length > 0
+    ? `\n[누적 히스토리 — 최근 ${history.length}일 실제 데이터]\n` +
+      history.map(h => `${h.date}: ${h.score}점 (${h.rating})`).join('\n')
+    : '';
 
   const prompt = `당신은 미국 주식시장 심리 분석 전문가입니다.
 오늘의 Fear & Greed Index 데이터를 바탕으로 한국어 시장 리포트를 작성해주세요.
@@ -430,15 +446,17 @@ async function callClaudeForFG(d, apiKey) {
 - 현재 점수: ${d.score}점 (${d.rating})
 - 전일 대비: ${d.prev_close} → ${d.score} (${diffStr})
 - 1주 전: ${d.prev_1_week}점 / 1개월 전: ${d.prev_1_month}점 / 1년 전: ${d.prev_1_year}점
+${historyText}
 
 [점수 기준]
 0~24: 극도의 공포 / 25~44: 공포 / 45~55: 중립 / 56~75: 탐욕 / 76~100: 극도의 탐욕
 
 [분석 요청]
 1. 현재 점수와 등급의 의미 해석
-2. 전일/1주/1개월/1년 추세 방향성 분석
-3. 이 심리 구간에서 역사적으로 시장이 어떻게 움직였는지
-4. 현재 투자자들이 주의해야 할 점
+2. 누적 히스토리 기반 실제 추세 분석 (있을 경우 우선 활용)
+3. 전일/1주/1개월/1년 추세 방향성
+4. 이 심리 구간에서 역사적으로 시장이 어떻게 움직였는지
+5. 현재 투자자들이 주의해야 할 점
 
 [작성 형식]
 맨 앞에 두 줄 요약 후 --- 이후 전체 리포트:
@@ -509,8 +527,19 @@ async function updateFearGreed() {
       getAnthropicKey()
     ]);
     const data = parseFearGreed(raw);
+
+    // Firebase에서 최근 30일 히스토리 읽기
+    const historySnap = await getDocs(
+      query(collection(db, 'fear_greed_reports'), orderBy('date', 'desc'), limit(30))
+    );
+    const history = historySnap.docs.map(d => ({
+      date:  d.data().date,
+      score: d.data().score,
+      rating: d.data().rating,
+    }));
+
     showToast(`✍️ Claude 리포트 생성 중... (${data.score}점 / ${data.rating})`);
-    const report = await callClaudeForFG(data, anthropicKey);
+    const report = await callClaudeForFG(data, anthropicKey, history);
     await saveFGToFirestore(data, report);
     await loadFearGreed();
     showToast('✅ Fear & Greed 리포트 업데이트 완료!');
