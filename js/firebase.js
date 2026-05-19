@@ -359,14 +359,13 @@ async function getAnthropicKey() {
   }
 }
 
-// CNN Fear & Greed API 호출 (CORS 프록시 경유)
+// CNN Fear & Greed API 호출
 async function fetchCNNFearGreed() {
+  // allorigins 프록시 사용 (HTTPS 강제)
   const CNN_DIRECT = 'https://production.dataviz.cnn.io/index/fearandgreed/graphdata/';
-  const PROXY = 'https://corsproxy.io/?' + encodeURIComponent(CNN_DIRECT);
+  const PROXY = 'https://api.allorigins.win/raw?url=' + encodeURIComponent(CNN_DIRECT);
 
-  const res = await fetch(PROXY, {
-    headers: { 'Accept': 'application/json' }
-  });
+  const res = await fetch(PROXY);
   if(!res.ok) throw new Error('CNN API 오류: ' + res.status);
   return res.json();
 }
@@ -440,7 +439,7 @@ async function callClaudeForFG(d, apiKey) {
       'anthropic-dangerous-direct-browser-access': 'true'
     },
     body: JSON.stringify({
-      model: 'claude-sonnet-4-20250514',
+      model: 'claude-sonnet-4-5',
       max_tokens: 1500,
       messages: [{ role: 'user', content: prompt }]
     })
