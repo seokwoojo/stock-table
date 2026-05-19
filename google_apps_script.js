@@ -63,8 +63,16 @@ function doGet(e) {
   const params = e.parameter;
   let result;
 
-  if (params.action === 'fear_greed') {
-    // Fear & Greed 리포트 생성 및 저장
+  if (params.action === 'fear_greed_data') {
+    // CNN Fear & Greed 원본 데이터만 반환 (브라우저에서 Claude 호출)
+    try {
+      var raw = fetchFearGreed();
+      result = raw; // 원본 JSON 그대로 반환
+    } catch(err) {
+      result = { error: err.message };
+    }
+  } else if (params.action === 'fear_greed') {
+    // Fear & Greed 리포트 생성 및 저장 (레거시)
     try {
       updateFearGreed();
       result = { message: 'Fear & Greed 업데이트 완료' };

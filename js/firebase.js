@@ -359,15 +359,14 @@ async function getAnthropicKey() {
   }
 }
 
-// CNN Fear & Greed API 호출
+// CNN Fear & Greed API 호출 — GAS 경유 (브라우저 CORS/Mixed Content 우회)
 async function fetchCNNFearGreed() {
-  // allorigins 프록시 사용 (HTTPS 강제)
-  const CNN_DIRECT = 'https://production.dataviz.cnn.io/index/fearandgreed/graphdata/';
-  const PROXY = 'https://api.allorigins.win/raw?url=' + encodeURIComponent(CNN_DIRECT);
-
-  const res = await fetch(PROXY);
-  if(!res.ok) throw new Error('CNN API 오류: ' + res.status);
-  return res.json();
+  if(!state.gasUrl) throw new Error('GAS URL이 설정되지 않았습니다');
+  const res = await fetch(`${state.gasUrl}?action=fear_greed_data`);
+  if(!res.ok) throw new Error('GAS 오류: ' + res.status);
+  const json = await res.json();
+  if(json.error) throw new Error(json.error);
+  return json;
 }
 
 // 데이터 파싱
