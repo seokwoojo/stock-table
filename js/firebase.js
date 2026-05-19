@@ -359,41 +359,54 @@ async function getAnthropicKey() {
   }
 }
 
-// Fear & Greed API 호출 (alternative.me — CORS 없음, 무료)
-async function fetchCNNFearGreed() {
-  // 최근 30일 데이터 가져오기 (추세 분석용)
-  const res = await fetch('https://api.alternative.me/fng/?limit=30&format=json');
-  if(!res.ok) throw new Error('API 오류: ' + res.status);
+// RapidAPI 키를 Firebase에서 가져오기
+async function getRapidApiKey() {
+  try {
+    const snap = await getDoc(doc(db, 'config', 'api_keys'));
+    if(!snap.exists()) throw new Error('RapidAPI 키가 없습니다');
+    return snap.data().rapidapi_key;
+  } catch(e) {
+    throw new Error('RapidAPI 키 로드 실패: ' + e.message);
+  }
+}
+
+// CNN Fear & Greed API 호출 (RapidAPI 경유 — CORS 허용, 7개 세부지표 포함)
+async function fetchCNNFearGreed(rapidApiKey) {
+  const res = await fetch('https://cnn-fear-and-greed-index.p.rapidapi.com/index/fearandgreed', {
+    headers: {
+      'x-rapidapi-host': 'cnn-fear-and-greed-index.p.rapidapi.com',
+      'x-rapidapi-key':  rapidApiKey
+    }
+  });
+  if(!res.ok) throw new Error('RapidAPI 오류: ' + res.status);
   return res.json();
 }
 
-// 데이터 파싱 (alternative.me)
+// 데이터 파싱 (RapidAPI CNN Fear & Greed)
 function parseFearGreed(raw) {
-  const data = raw.data;
-  const today     = data[0];
-  const yesterday = data[1]  || today;
-  const week_ago  = data[6]  || today;
-  const month_ago = data[29] || today;
+  const fg = raw.fear_and_greed;
 
-  const score  = parseInt(today.value);
-  const rating = RATING_KR_FG[today.value_classification.toLowerCase()] || today.value_classification;
-
-  // 30일 추세 분석
-  const scores = data.map(d => parseInt(d.value));
-  const avg7   = Math.round(scores.slice(0,7).reduce((a,b)=>a+b,0) / 7);
-  const avg30  = Math.round(scores.reduce((a,b)=>a+b,0) / scores.length);
-  const trend  = score > avg7 ? '상승' : score < avg7 ? '하락' : '보합';
+  function get(key) {
+    const node = raw[key] || {};
+    return {
+      score:  Math.round((node.score || 0) * 10) / 10,
+      rating: RATING_KR_FG[(node.rating || '').toLowerCase()] || node.rating || '—'
+    };
+  }
 
   return {
-    score,
-    rating,
-    prev_close:   parseInt(yesterday.value),
-    prev_1_week:  parseInt(week_ago.value),
-    prev_1_month: parseInt(month_ago.value),
-    avg7,
-    avg30,
-    trend,
-    history: scores.slice(0, 10), // 최근 10일
+    score:        Math.round(fg.score * 10) / 10,
+    rating:       RATING_KR_FG[fg.rating.toLowerCase()] || fg.rating,
+    prev_close:   Math.round((fg.previous_close || 0) * 10) / 10,
+    prev_1_week:  Math.round((fg.previous_1_week || 0) * 10) / 10,
+    prev_1_month: Math.round((fg.previous_1_month || 0) * 10) / 10,
+    momentum:     get('market_momentum_sp500'),
+    strength:     get('stock_price_strength'),
+    breadth:      get('stock_price_breadth'),
+    put_call:     get('put_call_options'),
+    vix:          get('market_volatility_vix'),
+    safe_haven:   get('safe_haven_demand'),
+    junk_bond:    get('junk_bond_demand'),
   };
 }
 
@@ -403,31 +416,28 @@ async function callClaudeForFG(d, apiKey) {
   const diffStr = diff >= 0 ? `▲${diff}` : `▼${Math.abs(diff)}`;
 
   const prompt = `당신은 미국 주식시장 심리 분석 전문가입니다.
-오늘의 Fear & Greed Index 데이터를 바탕으로 한국어 시장 리포트를 작성해주세요.
+오늘의 CNN Fear & Greed Index 데이터를 바탕으로 한국어 시장 리포트를 작성해주세요.
 
 [오늘 데이터]
-- 현재 점수: ${d.score}점 (${d.rating})
-- 전일: ${d.prev_close}점 → 오늘: ${d.score}점 (${diffStr})
-- 1주 전: ${d.prev_1_week}점 / 1개월 전: ${d.prev_1_month}점
-- 7일 평균: ${d.avg7}점 / 30일 평균: ${d.avg30}점
-- 최근 10일 추세: ${d.history.join(' → ')}
-- 단기 추세 방향: ${d.trend}
+- 전체 점수: ${d.score} (${d.rating})
+- 전일 대비: ${d.prev_close} → ${d.score} (${diffStr})
+- 1주 전: ${d.prev_1_week} / 1개월 전: ${d.prev_1_month}
 
-[점수 기준]
-0~25: 극도의 공포 / 26~44: 공포 / 45~55: 중립 / 56~74: 탐욕 / 75~100: 극도의 탐욕
-
-[분석 요청]
-1. 현재 점수와 등급의 의미
-2. 단기(7일)/중기(30일) 추세 해석
-3. 이런 심리 구간에서 역사적으로 시장이 어떻게 움직였는지
-4. 투자자들이 주의해야 할 점
+[세부지표] (0~100점, 높을수록 탐욕)
+- 시장 모멘텀 (S&P500 vs 125일 이동평균): ${d.momentum.score}점 / ${d.momentum.rating}
+- 주가 강도 (52주 신고가 vs 신저가): ${d.strength.score}점 / ${d.strength.rating}
+- 주가 폭 (상승 vs 하락 거래량): ${d.breadth.score}점 / ${d.breadth.rating}
+- 풋/콜 비율 (콜 우세 = 탐욕): ${d.put_call.score}점 / ${d.put_call.rating}
+- VIX 변동성 (높을수록 안정 = 탐욕): ${d.vix.score}점 / ${d.vix.rating}
+- 안전자산 수요 (주식 선호 = 탐욕): ${d.safe_haven.score}점 / ${d.safe_haven.rating}
+- 정크본드 수요 (위험자산 선호 = 탐욕): ${d.junk_bond.score}점 / ${d.junk_bond.rating}
 
 [작성 형식]
-맨 앞에 두 줄 요약 후 --- 구분선, 이후 전체 리포트:
+맨 앞에 두 줄 요약을 작성하고 --- 이후 전체 리포트를 작성하세요.
 📊 [첫째 줄 요약]
 📈 [둘째 줄 요약]
 ---
-(전체 리포트)
+(전체 리포트: 헤더 → 세부지표 해석 → 종합의견 → 추세요약)
 
 [주의사항]
 - 투자 권유 금지, 시장 심리 분석만
@@ -475,7 +485,7 @@ async function updateFearGreed() {
   showToast('📡 CNN Fear & Greed 데이터 수집 중...');
   try {
     const [raw, apiKey] = await Promise.all([
-      fetchCNNFearGreed(),
+      getRapidApiKey().then(key => fetchCNNFearGreed(key)),
       getAnthropicKey()
     ]);
     const data = parseFearGreed(raw);
