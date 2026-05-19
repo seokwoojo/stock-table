@@ -359,14 +359,13 @@ async function getAnthropicKey() {
   }
 }
 
-// CNN Fear & Greed API 호출
+// CNN Fear & Greed API 호출 (CORS 프록시 경유)
 async function fetchCNNFearGreed() {
-  const res = await fetch(CNN_FG_URL, {
-    headers: {
-      'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36',
-      'Referer': 'https://edition.cnn.com/',
-      'Accept': 'application/json'
-    }
+  const CNN_DIRECT = 'https://production.dataviz.cnn.io/index/fearandgreed/graphdata/';
+  const PROXY = 'https://corsproxy.io/?' + encodeURIComponent(CNN_DIRECT);
+
+  const res = await fetch(PROXY, {
+    headers: { 'Accept': 'application/json' }
   });
   if(!res.ok) throw new Error('CNN API 오류: ' + res.status);
   return res.json();
