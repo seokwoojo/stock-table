@@ -168,6 +168,10 @@
         <div style="display:flex;align-items:center;gap:10px;">
           <span style="font-size:10px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:var(--text3);">📊 CNN Fear & Greed</span>
           <span id="fg-score-badge" style="font-family:var(--mono);font-size:11px;padding:2px 10px;border-radius:10px;font-weight:700;"></span>
+          <button id="fg-update-btn" onclick="updateFearGreed()"
+            style="font-family:var(--mono);font-size:10px;padding:2px 8px;border-radius:2px;cursor:pointer;background:var(--accent-dim);border:1px solid rgba(0,230,118,0.3);color:var(--accent);">
+            🔄 업데이트
+          </button>
           <span id="fg-date" style="font-size:10px;color:var(--muted);font-family:var(--mono);"></span>
         </div>
         <button id="fg-toggle-btn" onclick="toggleFearGreedReport()"

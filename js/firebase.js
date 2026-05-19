@@ -283,9 +283,31 @@ async function loadFearGreed() {
     );
     const snapshot = await getDocs(q);
 
-    if(snapshot.empty) return;
+    if(snapshot.empty) {
+      // 데이터 없음 — 업데이트 버튼 활성화
+      const btn = document.getElementById('fg-update-btn');
+      if(btn) { btn.disabled = false; btn.style.opacity = '1'; btn.textContent = '🔄 업데이트'; }
+      return;
+    }
 
     const data = snapshot.docs[0].data();
+
+    // 오늘 리포트면 버튼 비활성화
+    const today = new Date().toISOString().slice(0, 10);
+    const btn = document.getElementById('fg-update-btn');
+    if(btn) {
+      if(data.date === today) {
+        btn.disabled = true;
+        btn.style.opacity = '0.4';
+        btn.style.cursor = 'not-allowed';
+        btn.textContent = '✅ 오늘 완료';
+      } else {
+        btn.disabled = false;
+        btn.style.opacity = '1';
+        btn.style.cursor = 'pointer';
+        btn.textContent = '🔄 업데이트';
+      }
+    }
 
     // 색상 매핑
     const colorMap = {
@@ -466,23 +488,36 @@ async function saveFGToFirestore(data, report) {
   });
 }
 
-// 메인 실행 함수 (버튼에서 호출)
 async function updateFearGreed() {
-  showToast('📡 CNN Fear & Greed 데이터 수집 중...');
+  const btn = document.getElementById('fg-update-btn');
+  showToast('📊 Fear & Greed 확인 중...');
   try {
-    const [raw, apiKey] = await Promise.all([
+    // 오늘 이미 리포트가 있으면 스킵
+    const today = new Date().toISOString().slice(0, 10);
+    const existing = await getDoc(doc(db, 'fear_greed_reports', today));
+    if(existing.exists()) {
+      showToast('📊 오늘 리포트가 이미 있습니다');
+      await loadFearGreed();
+      return;
+    }
+
+    // 버튼 즉시 비활성화
+    if(btn) { btn.disabled = true; btn.style.opacity = '0.4'; btn.textContent = '생성 중...'; }
+
+    const [raw, anthropicKey] = await Promise.all([
       getRapidApiKey().then(key => fetchCNNFearGreed(key)),
       getAnthropicKey()
     ]);
     const data = parseFearGreed(raw);
     showToast(`✍️ Claude 리포트 생성 중... (${data.score}점 / ${data.rating})`);
-    const report = await callClaudeForFG(data, apiKey);
+    const report = await callClaudeForFG(data, anthropicKey);
     await saveFGToFirestore(data, report);
     await loadFearGreed();
     showToast('✅ Fear & Greed 리포트 업데이트 완료!');
   } catch(e) {
     showToast('❌ 오류: ' + e.message);
     console.error(e);
+    if(btn) { btn.disabled = false; btn.style.opacity = '1'; btn.textContent = '🔄 업데이트'; }
   }
 }
 

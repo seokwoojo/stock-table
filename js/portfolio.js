@@ -628,8 +628,7 @@ async function refreshAllPrices(){
     scheduleSave();
     showToast(`✅ ${updated}개 종목 시세 업데이트 완료`);
 
-    // Fear & Greed 갱신 (브라우저에서 직접 호출)
-    if(typeof updateFearGreed === 'function') updateFearGreed();
+
 
   } catch(e) {
     showToast('❌ 업데이트 실패: ' + e.message);
