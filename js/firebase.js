@@ -486,4 +486,6 @@ async function updateFearGreed() {
   }
 }
 
-window.updateFearGreed = updateFearGreed;
+window.updateFearGreed       = updateFearGreed;
+window.loadFearGreed         = loadFearGreed;
+window.toggleFearGreedReport = toggleFearGreedReport;
