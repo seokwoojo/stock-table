@@ -1,218 +1,247 @@
-/**
- * 투자 대시보드 v02 - Google Apps Script
- * 국내 주식 / 국내 상장 ETF 주가 조회
- *
- * [배포 방법]
- * 1. https://script.google.com → 기존 내용 전체 삭제 후 붙여넣기
- * 2. 배포 → 배포 관리 → 편집 → 새 버전 → 배포
- */
-
-function getStockInfo(code) {
-  try {
-    const paddedCode = code.toString().padStart(6, '0');
-
-    // 현재가: polling API
-    const apiUrl = 'https://polling.finance.naver.com/api/realtime?query=SERVICE_ITEM:' + paddedCode;
-    const res = UrlFetchApp.fetch(apiUrl, {
-      muteHttpExceptions: true,
-      headers: { 'User-Agent': 'Mozilla/5.0', 'Referer': 'https://finance.naver.com' }
-    });
-    const json = JSON.parse(res.getContentText('UTF-8'));
-    const item = json && json.result && json.result.areas &&
-                 json.result.areas[0] && json.result.areas[0].datas &&
-                 json.result.areas[0].datas[0];
-
-    if (!item) return { error: '종목을 찾을 수 없습니다: ' + paddedCode };
-    const price = Number(item.nv) || 0;
-
-    // 종목명: sise 페이지 EUC-KR 디코딩
-    const nameUrl = 'https://finance.naver.com/item/sise.naver?code=' + paddedCode;
-    const nameRes = UrlFetchApp.fetch(nameUrl, {
-      muteHttpExceptions: true,
-      headers: { 'User-Agent': 'Mozilla/5.0', 'Referer': 'https://finance.naver.com' }
-    });
-    const blob = Utilities.newBlob(nameRes.getContent());
-    const html = blob.getDataAsString('EUC-KR');
-    const nameMatch = html.match(/<title>([^<:]+)/);
-    const name = nameMatch ? nameMatch[1].trim() : paddedCode;
-
-    return { code: paddedCode, name: name, price: price };
-
-  } catch(e) {
-    Logger.log('error: ' + e.message);
-    return { error: e.message };
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>투자 대시보드 v03</title>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700;900&family=IBM+Plex+Mono:wght@400;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/main.css">
+<style>
+  /* ── 로그인 화면 ── */
+  #login-screen {
+    position: fixed; inset: 0; background: var(--bg);
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    z-index: 9999; gap: 24px;
   }
-}
-
-function getMultipleStocks(codes) {
-  const results = {};
-  codes.forEach(function(code) {
-    results[code] = getStockInfo(code.trim());
-    Utilities.sleep(300);
-  });
-  return results;
-}
-
-function testStock() {
-  Logger.log(JSON.stringify(getStockInfo('005930')));
-  Logger.log(JSON.stringify(getStockInfo('360750')));
-  Logger.log(JSON.stringify(getStockInfo('416180')));
-}
-
-function doGet(e) {
-  const params = e.parameter;
-  let result;
-
-  if (params.action === 'fear_greed_data') {
-    // CNN Fear & Greed 원본 데이터만 반환 (브라우저에서 Claude 호출)
-    try {
-      var raw = fetchFearGreed();
-      result = raw; // 원본 JSON 그대로 반환
-    } catch(err) {
-      result = { error: err.message };
-    }
-  } else if (params.action === 'fear_greed') {
-    // Fear & Greed 리포트 생성 및 저장 (레거시)
-    try {
-      updateFearGreed();
-      result = { message: 'Fear & Greed 업데이트 완료' };
-    } catch(err) {
-      result = { error: err.message };
-    }
-  } else if (params.codes) {
-    const codes = params.codes.split(',').map(function(c){ return c.trim(); }).filter(Boolean);
-    result = getMultipleStocks(codes);
-  } else if (params.code) {
-    result = getStockInfo(params.code);
-  } else {
-    result = { error: 'code 또는 codes 파라미터가 필요합니다' };
+  #login-screen h2 {
+    font-size: 28px; font-weight: 900; color: var(--text);
+    letter-spacing: -0.5px;
   }
-
-  return ContentService
-    .createTextOutput(JSON.stringify(result))
-    .setMimeType(ContentService.MimeType.JSON);
-}
-
-function scheduledUpdate() {
-  const now = new Date();
-  const kst = new Date(now.getTime() + 9 * 60 * 60 * 1000);
-  if (kst.getUTCHours() === 15 && kst.getUTCMinutes() >= 25 && kst.getUTCMinutes() <= 40) {
-    Logger.log('3:30 자동 업데이트 실행');
+  #login-screen p { font-size: 13px; color: var(--muted); margin-top: -16px; }
+  .google-login-btn {
+    display: inline-flex; align-items: center; gap: 10px;
+    background: #fff; color: #3c4043;
+    border: none; border-radius: 4px;
+    padding: 12px 24px; font-size: 15px; font-weight: 600;
+    cursor: pointer; box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+    transition: box-shadow .2s;
   }
-}
+  .google-login-btn:hover { box-shadow: 0 4px 16px rgba(0,0,0,0.4); }
+  .google-login-btn img { width: 20px; height: 20px; }
 
-// ─────────────── Fear & Greed Index ───────────────
-// alternative.me API 사용 (CNN API는 GAS IP 차단)
-var ALT_FG_URL = "https://api.alternative.me/fng/?limit=2";
+  /* ── 헤더 유저 정보 ── */
+  #auth-user-wrap {
+    display: flex; align-items: center; gap: 8px;
+  }
+  #auth-avatar {
+    width: 28px; height: 28px; border-radius: 50%;
+    border: 2px solid var(--accent); display: none;
+  }
+  #auth-user-info {
+    font-size: 12px; color: var(--text2); font-family: var(--mono);
+  }
+  #auth-logout-btn {
+    display: none;
+    font-size: 11px; padding: 5px 10px;
+  }
+  #main-content { display: none; }
+</style>
+</head>
+<body>
 
-var RATING_KR_FG = {
-  "extreme fear": "극도의 공포",
-  "fear":         "공포",
-  "neutral":      "중립",
-  "greed":        "탐욕",
-  "extreme greed":"극도의 탐욕"
-};
+<!-- ── 로그인 화면 ── -->
+<div id="login-screen">
+  <div style="font-size:48px;">📊</div>
+  <h2>투자 대시보드</h2>
+  <p>Investment Portfolio Tracker</p>
+  <button class="google-login-btn" onclick="googleLogin()">
+    <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" alt="Google">
+    Google 계정으로 로그인
+  </button>
+  <p style="font-size:11px;color:var(--muted);margin-top:0;">로그인하면 어느 기기에서나 데이터가 동기화됩니다</p>
+</div>
 
-function fetchFearGreed() {
-  var res = UrlFetchApp.fetch(ALT_FG_URL, { muteHttpExceptions: true });
-  return JSON.parse(res.getContentText("UTF-8"));
-}
+<!-- ── 메인 콘텐츠 ── -->
+<div id="main-content">
+<div class="wrap">
 
-function parseFearGreed(raw) {
-  var today = raw.data[0];
-  var yesterday = raw.data[1] || today;
-  var score  = parseInt(today.value);
-  var rating = RATING_KR_FG[today.value_classification.toLowerCase()] || today.value_classification;
-  var prevScore = parseInt(yesterday.value);
-  return {
-    score:      score,
-    rating:     rating,
-    prev_close: prevScore,
-    prev_1_week:  0,  // 이 API는 제공 안 함
-    prev_1_month: 0,
-  };
-}
+  <!-- HEADER -->
+  <header>
+    <div class="logo-group">
+      <h1>📊 투자 대시보드 <span style="font-size:14px;letter-spacing:2px;color:var(--accent2);">v03</span></h1>
+      <span>Investment Portfolio Tracker</span>
+    </div>
+    <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+      <div class="header-date" style="margin-right:8px;">
+        <strong id="today-date"></strong>
+        <span id="today-time"></span>
+      </div>
+      <!-- 유저 정보 -->
+      <div id="auth-user-wrap">
+        <img id="auth-avatar" src="" alt="">
+        <span id="auth-user-info"></span>
+        <button id="auth-logout-btn" class="btn btn-ghost" onclick="googleLogout()">로그아웃</button>
+      </div>
+      <!-- 스냅샷 버튼들 -->
+      <div id="snapshot-btns" style="display:flex;gap:6px;align-items:center;"></div>
+      <button class="btn btn-ghost" style="font-size:10px;padding:6px 10px;white-space:nowrap;"
+        onclick="saveYearSnapshot(new Date().getFullYear())">📸 연도저장</button>
+      <button class="btn btn-ghost" style="font-size:10px;padding:6px 10px;white-space:nowrap;" onclick="refreshAllPrices()">🔄 시세갱신</button>
+      <button class="btn btn-ghost" onclick="exportJSON()">📥 내보내기</button>
+      <button class="btn btn-ghost" onclick="importJSON()">📤 불러오기</button>
+      <button class="btn btn-primary" onclick="saveToFirebase()">💾 저장</button>
+      <button class="btn btn-danger" style="border:1px solid var(--border);padding:8px 12px;" onclick="clearAll()">🗑️</button>
+    </div>
+  </header>
 
-function buildFGPrompt(d) {
-  var diff    = Math.round((d.score - d.prev_close) * 10) / 10;
-  var diffStr = diff >= 0 ? "▲" + diff : "▼" + Math.abs(diff);
-  return "당신은 미국 주식시장 심리 분석 전문가입니다.\n" +
-    "오늘의 CNN Fear & Greed Index 데이터를 바탕으로 한국어 시장 리포트를 작성해주세요.\n\n" +
-    "[오늘 데이터]\n" +
-    "- 전체 점수: " + d.score + " (" + d.rating + ")\n" +
-    "- 전일 대비: " + d.prev_close + " → " + d.score + " (" + diffStr + ")\n" +
-    "- 1주 전: " + d.prev_1_week + " / 1개월 전: " + d.prev_1_month + "\n\n" +
-    "[세부지표] (0~100점, 높을수록 탐욕)\n" +
-    "- 시장 모멘텀: " + d.momentum.score + "점 / " + d.momentum.rating + "\n" +
-    "- 주가 강도: " + d.strength.score + "점 / " + d.strength.rating + "\n" +
-    "- 주가 폭: " + d.breadth.score + "점 / " + d.breadth.rating + "\n" +
-    "- 풋/콜 비율: " + d.put_call.score + "점 / " + d.put_call.rating + "\n" +
-    "- VIX 변동성: " + d.vix.score + "점 / " + d.vix.rating + "\n" +
-    "- 안전자산 수요: " + d.safe_haven.score + "점 / " + d.safe_haven.rating + "\n" +
-    "- 정크본드 수요: " + d.junk_bond.score + "점 / " + d.junk_bond.rating + "\n\n" +
-    "[작성 형식]\n" +
-    "맨 앞에 두 줄 요약, --- 이후 전체 리포트:\n" +
-    "📊 [첫째 줄 요약]\n📈 [둘째 줄 요약]\n---\n(전체 리포트)\n\n" +
-    "[주의] 투자 권유 금지, 이모지/볼드체 사용, 마크다운 헤더 금지";
-}
+  <!-- ─── SECTION 1: 핵심 요약 ─── -->
+  <div class="section-title">핵심 요약</div>
+  <div class="summary-grid-3" style="display:grid;grid-template-columns:200px 200px 200px 200px 1fr;gap:16px;margin-bottom:16px;align-items:stretch;">
+    <div class="summary-card" style="min-height:90px;">
+      <div class="card-label">월 급여 (세후)</div>
+      <div style="display:flex;align-items:center;gap:4px;margin-top:4px;">
+        <span style="font-family:var(--mono);font-size:16px;color:var(--muted);">₩</span>
+        <input type="text" inputmode="numeric" id="salary" placeholder="0"
+          oninput="recalcAll()"
+          style="background:transparent;border:none;border-bottom:1px dashed var(--accent);font-family:var(--mono);font-size:22px;font-weight:600;color:var(--text);padding:2px 0;width:100%;outline:none;">
+      </div>
+    </div>
+    <div class="summary-card" style="min-height:90px;">
+      <div class="card-label">월 총 저축액</div>
+      <div class="card-value" id="s-monthSave">—</div>
+      <div class="save-progress"><div class="save-bar" id="s-saveProg"></div></div>
+      <div class="card-sub" id="s-saveRate"></div>
+    </div>
+    <div class="summary-card" style="min-height:90px;">
+      <div class="card-label">현재 투자 자산</div>
+      <div class="card-value neutral" id="s-asset">—</div>
+      <div class="card-sub" id="s-assetSub"></div>
+      <div style="display:flex;align-items:center;gap:6px;margin-top:8px;">
+        <span style="font-size:10px;color:var(--muted);">연 수익률</span>
+        <input type="text" inputmode="numeric" id="proj-rate" placeholder="10"
+          oninput="recalcAll()"
+          style="width:40px;background:transparent;border:none;border-bottom:1px dashed var(--accent);font-family:var(--mono);font-size:13px;font-weight:600;color:var(--accent);padding:1px 0;outline:none;text-align:center;">
+        <span style="font-size:10px;color:var(--muted);">%</span>
+      </div>
+      <div id="s-asset-proj" style="margin-top:6px;"></div>
+    </div>
+    <div class="summary-card" style="min-height:90px;">
+      <div class="card-label">월 배당 예상금액</div>
+      <div class="card-value pos" id="s-monthDiv">—</div>
+      <div class="card-sub" id="s-monthDivSub"></div>
+    </div>
+    <div class="summary-card" style="padding:14px 18px;">
+      <div class="card-label" style="margin-bottom:6px;">📋 메모</div>
+      <textarea id="memo-area" spellcheck="false"
+        oninput="saveMemo(this.value)"
+        placeholder="💡 절세 계좌 핵심 가이드
 
-function callClaude(prompt) {
-  var apiKey  = PropertiesService.getScriptProperties().getProperty("ANTHROPIC_API_KEY");
-  var payload = JSON.stringify({
-    model: "claude-sonnet-4-20250514",
-    max_tokens: 1500,
-    messages: [{ role: "user", content: prompt }]
-  });
-  var res = UrlFetchApp.fetch("https://api.anthropic.com/v1/messages", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "x-api-key": apiKey,
-      "anthropic-version": "2023-06-01"
-    },
-    payload: payload,
-    muteHttpExceptions: true
-  });
-  var json = JSON.parse(res.getContentText("UTF-8"));
-  if (json.error) throw new Error(json.error.message);
-  return json.content[0].text;
-}
+[ ISA ]  연 2,000만원 납입 / 의무 3년
+• 비과세: 일반형 200만원, 서민형 400만원 (총급여 5,000만원↓)
+• 초과분 9.9% 분리과세 / 손익통산 적용
+• 만기 후 60일 내 연금계좌 이체 → 이체금액 10% 추가 세액공제 (최대 300만원)
+• 추천: 국내 고배당주 ETF, 국내상장 해외배당주 ETF, 국내 커버드콜 ETF
 
-function saveFGToFirestore(data, report) {
-  var parts      = report.split("---");
-  var summary    = parts.length > 1 ? parts[0].trim() : "";
-  var fullReport = parts.length > 1 ? parts[1].trim() : report;
-  var today      = Utilities.formatDate(new Date(), "Asia/Seoul", "yyyy-MM-dd");
-  var projectId  = "stock-dashboard-ed29b";
-  var url        = "https://firestore.googleapis.com/v1/projects/" + projectId +
-                   "/databases/(default)/documents/fear_greed_reports/" + today;
-  var token      = ScriptApp.getOAuthToken();
-  var body       = JSON.stringify({
-    fields: {
-      score:      { doubleValue: data.score },
-      rating:     { stringValue: data.rating },
-      summary:    { stringValue: summary },
-      report:     { stringValue: fullReport },
-      date:       { stringValue: today },
-      created_at: { stringValue: new Date().toISOString() }
-    }
-  });
-  var resp = UrlFetchApp.fetch(url, {
-    method: "PATCH",
-    headers: { "Authorization": "Bearer " + token, "Content-Type": "application/json" },
-    payload: body,
-    muteHttpExceptions: true
-  });
-  Logger.log("Firestore 저장: " + resp.getResponseCode());
-}
+[ 연금저축 ]  연 600만원 세액공제
+• 공제율: 연봉 5,500만원↓ 16.5%(최대 99만원 환급) / 초과 13.2%
+• 과세이연: 운용수익 세금을 연금수령 시까지 유예 → 복리 극대화
+• 연금수령 시 3.3~5.5% 저율과세 / 중도해지 시 16.5% 기타소득세
+• 추천: 국내상장 해외지수 ETF, 국내 고배당주 ETF, 국내 커버드콜 ETF
 
-function updateFearGreed() {
-  Logger.log("📡 Fear & Greed 데이터 수집...");
-  var raw    = fetchFearGreed();
-  var data   = parseFearGreed(raw);
-  Logger.log("점수: " + data.score + " (" + data.rating + ")");
-  Logger.log("✍️ Claude 리포트 생성...");
-  var report = callClaude(buildFGPrompt(data));
-  saveFGToFirestore(data, report);
-  Logger.log("✅ 완료");
-}
+[ IRP ]  연금저축 합산 연 900만원 세액공제
+• 과세이연 동일 적용 / 위험자산 70% 제한 (안전자산 30% 필수)
+• 중도인출 거의 불가 / 퇴직금 자동 이체
+• 추천: TDF, 채권혼합형 ETF, 국내 커버드콜 ETF (비위험자산 분류)
+
+[ CMA ]  수시 입출금 / 파킹통장
+• 절세 혜택 없음 (배당소득 15.4% 과세)
+• 추천: 일반 거래, 단기채 ETF"
+        style="width:100%;height:90px;background:transparent;border:none;color:var(--text2);font-size:11px;font-family:var(--mono);resize:vertical;outline:none;line-height:1.6;box-sizing:border-box;"></textarea>
+    </div>
+  </div>
+
+  <!-- ─── SECTION 2: Fear & Greed ─── -->
+  <div id="fear-greed-section" style="margin-bottom:24px;display:none;">
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:4px;padding:14px 18px;">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
+        <div style="display:flex;align-items:center;gap:10px;">
+          <span style="font-size:10px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:var(--text3);">📊 CNN Fear & Greed</span>
+          <span id="fg-score-badge" style="font-family:var(--mono);font-size:11px;padding:2px 10px;border-radius:10px;font-weight:700;"></span>
+          <button id="fg-update-btn" onclick="updateFearGreed()"
+            style="font-family:var(--mono);font-size:10px;padding:2px 8px;border-radius:2px;cursor:pointer;background:var(--accent-dim);border:1px solid rgba(0,230,118,0.3);color:var(--accent);">
+            🔄 업데이트
+          </button>
+          <span id="fg-date" style="font-size:10px;color:var(--muted);font-family:var(--mono);"></span>
+        </div>
+        <button id="fg-toggle-btn" onclick="toggleFearGreedReport()"
+          style="font-family:var(--mono);font-size:10px;padding:3px 10px;background:var(--surface2);border:1px solid var(--border);color:var(--text3);border-radius:2px;cursor:pointer;">
+          자세히 보기
+        </button>
+      </div>
+      <!-- 두 줄 요약 -->
+      <div id="fg-summary" style="font-size:12px;color:var(--text2);line-height:1.7;white-space:pre-line;"></div>
+      <!-- 전체 리포트 (접힘) -->
+      <div id="fg-full-report" style="display:none;margin-top:12px;padding-top:12px;border-top:1px solid var(--border);">
+        <div id="fg-report-content" style="font-size:12px;color:var(--text2);line-height:1.8;white-space:pre-wrap;font-family:var(--mono);"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ─── SECTION 3: 계좌별 월 저축 현황 ─── -->
+  <div class="section-title">계좌별 월 저축 현황</div>
+  <div class="grid-3" id="savings-grid"></div>
+  <div class="actions-row">
+    <button class="btn btn-ghost" onclick="addSavingsAccount()">+ 예적금 계좌 추가</button>
+  </div>
+
+  <!-- ─── SECTION 4: 계좌별 주식 포트폴리오 ─── -->
+  <div class="section-title">계좌별 주식 포트폴리오</div>
+  <div id="portfolio-section"></div>
+  <div class="actions-row">
+    <button class="btn btn-ghost" onclick="addPortfolioAccount()">+ 포트폴리오 계좌 추가</button>
+  </div>
+
+  <!-- ─── SECTION 5: 예금 적금 보유 현황 ─── -->
+  <div class="section-title">예금 적금 보유 현황</div>
+  <div style="overflow-x:auto;">
+    <table id="maturity-table">
+      <colgroup>
+        <col style="min-width:120px;">
+        <col style="width:80px;">
+        <col style="width:100px;">
+        <col style="width:80px;">
+        <col style="width:100px;">
+        <col style="width:120px;">
+        <col style="width:120px;">
+        <col style="width:140px;">
+        <col style="width:140px;">
+        <col style="width:100px;">
+        <col style="width:40px;">
+      </colgroup>
+      <thead>
+        <tr>
+          <th>계좌명</th><th>종류</th><th>월 저축액</th><th>납입일</th>
+          <th>금리(%)</th><th>가입일</th><th>만기일</th>
+          <th>현재 기준 총 납입금</th><th>만기 예상 금액</th><th>만기까지</th><th></th>
+        </tr>
+      </thead>
+      <tbody id="maturity-body"></tbody>
+    </table>
+  </div>
+  <div class="actions-row">
+    <button class="btn btn-primary" onclick="addMaturityRow()">+ 적금 추가</button>
+  </div>
+
+</div><!-- /wrap -->
+</div><!-- /main-content -->
+
+<script src="js/state.js"></script>
+<script src="js/utils.js"></script>
+<script src="js/savings.js"></script>
+<script src="js/portfolio.js"></script>
+<script src="js/maturity.js"></script>
+<script src="js/main.js"></script>
+<script type="module" src="js/firebase.js"></script>
+</body>
+</html>

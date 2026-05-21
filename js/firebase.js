@@ -458,17 +458,32 @@ ${historyText}
 4. 이 심리 구간에서 역사적으로 시장이 어떻게 움직였는지
 5. 현재 투자자들이 주의해야 할 점
 
+[주요 경제 이슈 검색]
+웹 검색으로 오늘 기준 국내외 주요 경제 이슈를 찾아서 중복 없이 5개를 선별하세요.
+각 이슈마다 한 줄 요약과 시장에 미치는 영향을 📈 긍정 / 📉 부정 / ➡️ 중립으로 표시하세요.
+국내(한국) 이슈와 글로벌 이슈를 균형있게 포함하세요.
+
 [작성 형식]
 맨 앞에 두 줄 요약 후 --- 이후 전체 리포트:
 📊 [첫째 줄 요약]
 📈 [둘째 줄 요약]
 ---
-(전체 리포트)
+**📰 주요 경제 이슈 (5개)**
+1. [이슈명] 📈/📉/➡️
+   → [한 줄 설명 + 시장 영향]
+...
+
+**😱 Fear & Greed 분석**
+(Fear & Greed 데이터 기반 분석)
+
+**📊 종합 의견**
+(경제 이슈와 Fear & Greed를 연결한 종합 분석)
 
 [주의사항]
 - 투자 권유 금지, 시장 심리 분석만
 - 이모지/볼드체 사용, 마크다운 헤더(##) 금지
-- 읽기 편한 톤으로 작성`;
+- 읽기 편한 톤으로 작성
+- 점수 수치는 반드시 위 데이터에 있는 값만 그대로 사용할 것 (임의로 바꾸지 말 것)`;
 
   const res = await fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
@@ -480,13 +495,19 @@ ${historyText}
     },
     body: JSON.stringify({
       model: 'claude-sonnet-4-5',
-      max_tokens: 1500,
+      max_tokens: 2500,
+      tools: [{ type: 'web_search_20250305', name: 'web_search' }],
       messages: [{ role: 'user', content: prompt }]
     })
   });
   const json = await res.json();
   if(json.error) throw new Error(json.error.message);
-  return json.content[0].text;
+  // tool_use 블록 제외하고 text만 추출
+  const text = json.content
+    .filter(b => b.type === 'text')
+    .map(b => b.text)
+    .join('');
+  return text;
 }
 
 // Firestore에 저장

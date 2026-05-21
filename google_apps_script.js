@@ -1,181 +1,218 @@
-// ─────────────── CLOCK ───────────────
-function updateClock(){
-  const now = new Date();
-  document.getElementById('today-date').textContent =
-    now.toLocaleDateString('ko-KR',{year:'numeric',month:'long',day:'numeric',weekday:'short'});
-  document.getElementById('today-time').textContent =
-    now.toLocaleTimeString('ko-KR',{hour:'2-digit',minute:'2-digit'});
-}
-setInterval(updateClock,1000);
-updateClock();
+/**
+ * 투자 대시보드 v02 - Google Apps Script
+ * 국내 주식 / 국내 상장 ETF 주가 조회
+ *
+ * [배포 방법]
+ * 1. https://script.google.com → 기존 내용 전체 삭제 후 붙여넣기
+ * 2. 배포 → 배포 관리 → 편집 → 새 버전 → 배포
+ */
 
-// ─────────────── SAVINGS ───────────────
-function addSavingsAccount(){
-  const id = uid();
-  state.savings.push({id, type:'적금', name:'새 계좌', monthlyAmt:0, totalPrincipal:0, currentAmt:0, maturityDate:''});
-  renderSavings();
-  recalcAll();
-  setTimeout(() => {
-    const el = document.querySelector(`#sc-${id} .savings-name-input`);
-    if(el){ el.focus(); el.select(); }
-  }, 50);
-}
+function getStockInfo(code) {
+  try {
+    const paddedCode = code.toString().padStart(6, '0');
 
-function renderSavings(){
-  const grid = document.getElementById('savings-grid');
-  if(!state.savings.length){
-    grid.innerHTML = '<div style="color:var(--muted);font-size:12px;font-family:var(--mono);grid-column:1/-1;padding:8px 0">아직 저축 계좌가 없습니다</div>';
-    return;
-  }
-
-  const FIXED_PORT_TYPES_SORT = ['ISA','CMA','과세 연금저축','비과세 연금저축','IRP'];
-  const normalizeType = t => t ? t.replace(/\s+/g,'') : '';
-
-  function getLinkedPortfolio(s){
-    return state.portfolios.find(p => p.id === s.id)
-      || state.portfolios.find(p => p.fixed && normalizeType(p.type) === normalizeType(s.type));
-  }
-
-  // 1. 주식 카드: 포트폴리오 배열 순서 기준
-  const stockCards = state.savings.filter(s => !!getLinkedPortfolio(s))
-    .sort((a, b) => {
-      const ai = state.portfolios.findIndex(p => p.id===a.id || (p.fixed && p.type===a.type));
-      const bi = state.portfolios.findIndex(p => p.id===b.id || (p.fixed && p.type===b.type));
-      return ai - bi;
+    // 현재가: polling API
+    const apiUrl = 'https://polling.finance.naver.com/api/realtime?query=SERVICE_ITEM:' + paddedCode;
+    const res = UrlFetchApp.fetch(apiUrl, {
+      muteHttpExceptions: true,
+      headers: { 'User-Agent': 'Mozilla/5.0', 'Referer': 'https://finance.naver.com' }
     });
-  // 2. 예적금 카드
-  const savingCards = state.savings.filter(s => !getLinkedPortfolio(s));
-  const sorted = [...stockCards, ...savingCards];
+    const json = JSON.parse(res.getContentText('UTF-8'));
+    const item = json && json.result && json.result.areas &&
+                 json.result.areas[0] && json.result.areas[0].datas &&
+                 json.result.areas[0].datas[0];
 
-  grid.innerHTML = sorted.map(s => {
-    // 포트폴리오 연결: id 또는 타입(띄어쓰기 무시)으로 매칭
-    const linkedPortfolio = state.portfolios.find(p => p.id === s.id)
-      || state.portfolios.find(p => p.fixed && normalizeType(p.type) === normalizeType(s.type));
-    const isStock = !!linkedPortfolio;
+    if (!item) return { error: '종목을 찾을 수 없습니다: ' + paddedCode };
+    const price = Number(item.nv) || 0;
 
-    // 주식: 초록, 예적금: 하늘색
-    const cardAccent    = isStock ? 'var(--accent)'           : '#4fc3f7';
-    const cardAccentDim = isStock ? 'var(--accent-dim)'       : 'rgba(79,195,247,0.08)';
-    const cardBorder    = isStock ? 'rgba(0,230,118,0.15)'    : 'rgba(79,195,247,0.15)';
-    const typeLabelClr  = isStock ? 'var(--accent)'           : '#4fc3f7';
+    // 종목명: sise 페이지 EUC-KR 디코딩
+    const nameUrl = 'https://finance.naver.com/item/sise.naver?code=' + paddedCode;
+    const nameRes = UrlFetchApp.fetch(nameUrl, {
+      muteHttpExceptions: true,
+      headers: { 'User-Agent': 'Mozilla/5.0', 'Referer': 'https://finance.naver.com' }
+    });
+    const blob = Utilities.newBlob(nameRes.getContent());
+    const html = blob.getDataAsString('EUC-KR');
+    const nameMatch = html.match(/<title>([^<:]+)/);
+    const name = nameMatch ? nameMatch[1].trim() : paddedCode;
 
-    // 타입 라벨 & 계좌명
-    const maturityEntry = !isStock ? state.maturity.find(x=>x.id===s.id) : null;
-    const typeLabel  = isStock ? linkedPortfolio.type : (maturityEntry ? maturityEntry.type : s.type);
-    const acctName   = isStock ? linkedPortfolio.accountName : (maturityEntry ? maturityEntry.name : s.name);
-    const broker     = isStock ? (linkedPortfolio.broker || s.broker) : s.broker;
+    return { code: paddedCode, name: name, price: price };
 
-    // 수치 계산
-    let principal = 0, current = 0;
-    let totalGain = 0, totalLoss = 0, realizedGain = 0, realizedLoss = 0, accDivTotal = 0;
-    if(isStock){
-      const p = linkedPortfolio;
-      principal = p.stocks.reduce((a,st)=>{
-        const pos = calcPosition(st);
-        const qty      = (pos.qty !== undefined) ? pos.qty : (st.baseQty || 0);
-        const avgPrice = (pos.avgPrice !== undefined) ? pos.avgPrice : (st.baseAvgPrice || 0);
-        return a + qty * avgPrice;
-      }, 0);
-      const val  = p.stocks.reduce((a,st)=>{
-        const pos = calcPosition(st);
-        const qty = (pos.qty !== undefined) ? pos.qty : (st.baseQty || 0);
-        return a + qty * st.curPrice;
-      }, 0);
-      const real = p.stocks.reduce((a,st)=>{ const pos=calcPosition(st); return a+pos.realizedPnl; },0);
-      const div  = p.stocks.reduce((a,st)=>a+(st.accumulatedDividend||0),0);
-      const unreal = val - principal;
-      current = principal + unreal + real + div;
+  } catch(e) {
+    Logger.log('error: ' + e.message);
+    return { error: e.message };
+  }
+}
 
-      // 종목별 이득/손실 분리
-      p.stocks.forEach(st => {
-        const pos      = calcPosition(st);
-        const qty      = (pos.qty !== undefined) ? pos.qty : (st.baseQty || 0);
-        const avgPrice = (pos.avgPrice !== undefined) ? pos.avgPrice : (st.baseAvgPrice || 0);
-        const stVal    = qty * st.curPrice;
-        const stCost   = qty * avgPrice;
-        const unreal   = stVal - stCost;
-        const realized = pos.realizedPnl;
-        const accDiv   = st.accumulatedDividend || 0;
-        const totalPnl = unreal + realized + accDiv;
-        if(totalPnl >= 0) totalGain += totalPnl;
-        else              totalLoss += totalPnl;
-      });
-      // 실현 이득/손실, 누적 배당 집계
-      realizedGain = p.stocks.reduce((a,st)=>{ const r=calcPosition(st).realizedPnl; return r>0?a+r:a; },0);
-      realizedLoss = p.stocks.reduce((a,st)=>{ const r=calcPosition(st).realizedPnl; return r<0?a+r:a; },0);
-      accDivTotal  = p.stocks.reduce((a,st)=>a+(st.accumulatedDividend||0),0);
-    } else {
-      const m = maturityEntry;
-      if(m && m.startDate && s.monthlyAmt > 0){
-        const start   = new Date(m.startDate);
-        const now     = new Date();
-        const elapsed = Math.max(0,(now.getFullYear()-start.getFullYear())*12+(now.getMonth()-start.getMonth()));
-        const payCount = elapsed + 1;
-        principal = payCount * s.monthlyAmt;
-        const interest = s.monthlyAmt*(payCount*(payCount+1)/2)*((m.rate||0)/100/12);
-        current = Math.round(principal + interest);
-      } else {
-        principal = s.totalPrincipal || 0;
-        current   = s.currentAmt    || 0;
-      }
+function getMultipleStocks(codes) {
+  const results = {};
+  codes.forEach(function(code) {
+    results[code] = getStockInfo(code.trim());
+    Utilities.sleep(300);
+  });
+  return results;
+}
+
+function testStock() {
+  Logger.log(JSON.stringify(getStockInfo('005930')));
+  Logger.log(JSON.stringify(getStockInfo('360750')));
+  Logger.log(JSON.stringify(getStockInfo('416180')));
+}
+
+function doGet(e) {
+  const params = e.parameter;
+  let result;
+
+  if (params.action === 'fear_greed_data') {
+    // CNN Fear & Greed 원본 데이터만 반환 (브라우저에서 Claude 호출)
+    try {
+      var raw = fetchFearGreed();
+      result = raw; // 원본 JSON 그대로 반환
+    } catch(err) {
+      result = { error: err.message };
     }
+  } else if (params.action === 'fear_greed') {
+    // Fear & Greed 리포트 생성 및 저장 (레거시)
+    try {
+      updateFearGreed();
+      result = { message: 'Fear & Greed 업데이트 완료' };
+    } catch(err) {
+      result = { error: err.message };
+    }
+  } else if (params.codes) {
+    const codes = params.codes.split(',').map(function(c){ return c.trim(); }).filter(Boolean);
+    result = getMultipleStocks(codes);
+  } else if (params.code) {
+    result = getStockInfo(params.code);
+  } else {
+    result = { error: 'code 또는 codes 파라미터가 필요합니다' };
+  }
 
-    const pnl  = current - principal;
-    const rate = principal > 0 ? (pnl/principal*100).toFixed(2) : null;
-    const isPos = pnl >= 0;
+  return ContentService
+    .createTextOutput(JSON.stringify(result))
+    .setMimeType(ContentService.MimeType.JSON);
+}
 
-    return `
-    <div class="savings-card" id="sc-${s.id}" style="border-color:${cardBorder};position:relative;">
-      <div style="position:absolute;top:0;left:0;right:0;height:2px;background:${cardAccent};border-radius:3px 3px 0 0;opacity:0.7;"></div>
-      <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px;margin-top:4px;">
-        <div style="flex:1;min-width:0;">
-          <div class="savings-card-type" style="font-family:var(--mono);font-size:12px;font-weight:700;color:${typeLabelClr};margin-bottom:3px;">${typeLabel}</div>
-          <select style="background:transparent;border:none;font-size:11px;color:var(--muted);padding:0;margin-bottom:5px;cursor:pointer;width:100%;" onchange="updateSavings(${s.id},'broker',this.value)">
-            ${BROKERS.map(b=>`<option value="${b}" ${(broker||'증권사 선택')===b?'selected':''}>${b}</option>`).join('')}
-          </select>
-          ${isStock ? '' : `<div class="savings-card-name" style="font-size:13px;font-weight:600;color:var(--text);padding:3px 0;">${acctName||'—'}</div>`}
-        </div>
-        <button class="btn btn-danger" style="margin-left:8px;flex-shrink:0;" onclick="removeSavings(${s.id})">✕</button>
-      </div>
-      <div class="type-badge" style="background:${cardAccentDim};color:${cardAccent};border-color:${cardBorder};">월 저축</div>
-      <div style="display:flex;align-items:center;gap:4px;margin-bottom:14px;">
-        <span style="font-family:var(--mono);font-size:13px;color:var(--muted);">₩</span>
-        ${mkNum(s.monthlyAmt, `updateSavings(${s.id},'monthlyAmt',v)`, `border:none;border-bottom:1px dashed ${cardAccent};font-size:20px;font-weight:600;padding:2px 0;width:100%;background:transparent;`, '0')}
-      </div>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:${rate!==null&&current>0?'8':'14'}px;">
-        <div>
-          <div style="font-size:10px;color:var(--text3);letter-spacing:1px;text-transform:uppercase;margin-bottom:4px;">총 투자 원금</div>
-          <div style="font-family:var(--mono);font-size:13px;font-weight:600;color:var(--text2);">${principal ? fmtKRW(principal) : '—'}</div>
-        </div>
-        <div>
-          <div style="font-size:10px;color:var(--text3);letter-spacing:1px;text-transform:uppercase;margin-bottom:4px;">현재 금액</div>
-          <div style="font-family:var(--mono);font-size:13px;font-weight:600;color:var(--text2);">${current ? fmtKRW(current) : '—'}</div>
-        </div>
-      </div>
-      ${(rate !== null && current > 0) ? `
-      <div style="display:flex;align-items:center;justify-content:space-between;background:${isPos?'var(--red-dim)':'var(--cyan-dim)'};border-radius:2px;padding:5px 8px;margin-bottom:${isStock && (totalGain!==0||totalLoss!==0)?'4':'10'}px;">
-        <span style="font-size:10px;color:var(--text3);letter-spacing:1px;">총 수익률</span>
-        <span style="font-family:var(--mono);font-size:12px;font-weight:700;color:${isPos?'var(--red)':'var(--cyan)'};">${isPos?'+':''}${rate}% (${isPos?'+':''}${fmtKRW(pnl)})</span>
-      </div>` : ''}
-      ${isStock && (totalGain!==0||totalLoss!==0||realizedGain!==0||accDivTotal!==0) ? `
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:4px;margin-bottom:10px;">
-        <div style="background:var(--red-dim);border-radius:2px;padding:4px 8px;">
-          <div style="font-size:9px;color:var(--muted);margin-bottom:2px;">미실현+실현+배당</div>
-          <div style="font-family:var(--mono);font-size:11px;font-weight:700;color:var(--red);">${totalGain>0?'+':''}${fmtKRW(Math.round(totalGain))}</div>
-        </div>
-        <div style="background:var(--cyan-dim);border-radius:2px;padding:4px 8px;">
-          <div style="font-size:9px;color:var(--muted);margin-bottom:2px;">실현 손실</div>
-          <div style="font-family:var(--mono);font-size:11px;font-weight:700;color:var(--cyan);">${realizedLoss!==0?fmtKRW(Math.round(realizedLoss)):'—'}</div>
-        </div>
-        <div style="background:var(--red-dim);border-radius:2px;padding:4px 8px;">
-          <div style="font-size:9px;color:var(--muted);margin-bottom:2px;">실현 이득 (배당 제외)</div>
-          <div style="font-family:var(--mono);font-size:11px;font-weight:700;color:var(--red);">${realizedGain>0?'+'+fmtKRW(Math.round(realizedGain)):'—'}</div>
-        </div>
-        <div style="background:var(--accent-dim);border-radius:2px;padding:4px 8px;">
-          <div style="font-size:9px;color:var(--muted);margin-bottom:2px;">누적 배당</div>
-          <div style="font-family:var(--mono);font-size:11px;font-weight:700;color:var(--accent);">${accDivTotal>0?'+'+fmtKRW(Math.round(accDivTotal)):'—'}</div>
-        </div>
-      </div>` : ''}
-    </div>`;
-  }).join('');
+function scheduledUpdate() {
+  const now = new Date();
+  const kst = new Date(now.getTime() + 9 * 60 * 60 * 1000);
+  if (kst.getUTCHours() === 15 && kst.getUTCMinutes() >= 25 && kst.getUTCMinutes() <= 40) {
+    Logger.log('3:30 자동 업데이트 실행');
+  }
+}
+
+// ─────────────── Fear & Greed Index ───────────────
+// alternative.me API 사용 (CNN API는 GAS IP 차단)
+var ALT_FG_URL = "https://api.alternative.me/fng/?limit=2";
+
+var RATING_KR_FG = {
+  "extreme fear": "극도의 공포",
+  "fear":         "공포",
+  "neutral":      "중립",
+  "greed":        "탐욕",
+  "extreme greed":"극도의 탐욕"
+};
+
+function fetchFearGreed() {
+  var res = UrlFetchApp.fetch(ALT_FG_URL, { muteHttpExceptions: true });
+  return JSON.parse(res.getContentText("UTF-8"));
+}
+
+function parseFearGreed(raw) {
+  var today = raw.data[0];
+  var yesterday = raw.data[1] || today;
+  var score  = parseInt(today.value);
+  var rating = RATING_KR_FG[today.value_classification.toLowerCase()] || today.value_classification;
+  var prevScore = parseInt(yesterday.value);
+  return {
+    score:      score,
+    rating:     rating,
+    prev_close: prevScore,
+    prev_1_week:  0,  // 이 API는 제공 안 함
+    prev_1_month: 0,
+  };
+}
+
+function buildFGPrompt(d) {
+  var diff    = Math.round((d.score - d.prev_close) * 10) / 10;
+  var diffStr = diff >= 0 ? "▲" + diff : "▼" + Math.abs(diff);
+  return "당신은 미국 주식시장 심리 분석 전문가입니다.\n" +
+    "오늘의 CNN Fear & Greed Index 데이터를 바탕으로 한국어 시장 리포트를 작성해주세요.\n\n" +
+    "[오늘 데이터]\n" +
+    "- 전체 점수: " + d.score + " (" + d.rating + ")\n" +
+    "- 전일 대비: " + d.prev_close + " → " + d.score + " (" + diffStr + ")\n" +
+    "- 1주 전: " + d.prev_1_week + " / 1개월 전: " + d.prev_1_month + "\n\n" +
+    "[세부지표] (0~100점, 높을수록 탐욕)\n" +
+    "- 시장 모멘텀: " + d.momentum.score + "점 / " + d.momentum.rating + "\n" +
+    "- 주가 강도: " + d.strength.score + "점 / " + d.strength.rating + "\n" +
+    "- 주가 폭: " + d.breadth.score + "점 / " + d.breadth.rating + "\n" +
+    "- 풋/콜 비율: " + d.put_call.score + "점 / " + d.put_call.rating + "\n" +
+    "- VIX 변동성: " + d.vix.score + "점 / " + d.vix.rating + "\n" +
+    "- 안전자산 수요: " + d.safe_haven.score + "점 / " + d.safe_haven.rating + "\n" +
+    "- 정크본드 수요: " + d.junk_bond.score + "점 / " + d.junk_bond.rating + "\n\n" +
+    "[작성 형식]\n" +
+    "맨 앞에 두 줄 요약, --- 이후 전체 리포트:\n" +
+    "📊 [첫째 줄 요약]\n📈 [둘째 줄 요약]\n---\n(전체 리포트)\n\n" +
+    "[주의] 투자 권유 금지, 이모지/볼드체 사용, 마크다운 헤더 금지";
+}
+
+function callClaude(prompt) {
+  var apiKey  = PropertiesService.getScriptProperties().getProperty("ANTHROPIC_API_KEY");
+  var payload = JSON.stringify({
+    model: "claude-sonnet-4-20250514",
+    max_tokens: 1500,
+    messages: [{ role: "user", content: prompt }]
+  });
+  var res = UrlFetchApp.fetch("https://api.anthropic.com/v1/messages", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "x-api-key": apiKey,
+      "anthropic-version": "2023-06-01"
+    },
+    payload: payload,
+    muteHttpExceptions: true
+  });
+  var json = JSON.parse(res.getContentText("UTF-8"));
+  if (json.error) throw new Error(json.error.message);
+  return json.content[0].text;
+}
+
+function saveFGToFirestore(data, report) {
+  var parts      = report.split("---");
+  var summary    = parts.length > 1 ? parts[0].trim() : "";
+  var fullReport = parts.length > 1 ? parts[1].trim() : report;
+  var today      = Utilities.formatDate(new Date(), "Asia/Seoul", "yyyy-MM-dd");
+  var projectId  = "stock-dashboard-ed29b";
+  var url        = "https://firestore.googleapis.com/v1/projects/" + projectId +
+                   "/databases/(default)/documents/fear_greed_reports/" + today;
+  var token      = ScriptApp.getOAuthToken();
+  var body       = JSON.stringify({
+    fields: {
+      score:      { doubleValue: data.score },
+      rating:     { stringValue: data.rating },
+      summary:    { stringValue: summary },
+      report:     { stringValue: fullReport },
+      date:       { stringValue: today },
+      created_at: { stringValue: new Date().toISOString() }
+    }
+  });
+  var resp = UrlFetchApp.fetch(url, {
+    method: "PATCH",
+    headers: { "Authorization": "Bearer " + token, "Content-Type": "application/json" },
+    payload: body,
+    muteHttpExceptions: true
+  });
+  Logger.log("Firestore 저장: " + resp.getResponseCode());
+}
+
+function updateFearGreed() {
+  Logger.log("📡 Fear & Greed 데이터 수집...");
+  var raw    = fetchFearGreed();
+  var data   = parseFearGreed(raw);
+  Logger.log("점수: " + data.score + " (" + data.rating + ")");
+  Logger.log("✍️ Claude 리포트 생성...");
+  var report = callClaude(buildFGPrompt(data));
+  saveFGToFirestore(data, report);
+  Logger.log("✅ 완료");
 }
