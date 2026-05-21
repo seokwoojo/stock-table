@@ -435,18 +435,20 @@ async function callClaudeForFG(d, apiKey, history=[]) {
   const diffStr = diff >= 0 ? `▲${diff}` : `▼${Math.abs(diff)}`;
 
   const historyText = history.length > 0
-    ? `\n[누적 히스토리 — 최근 ${history.length}일 실제 데이터]\n` +
+    ? `\n[Firebase 누적 히스토리 — 실제 저장된 ${history.length}일 데이터 (최신순)]\n` +
       history.map(h => `${h.date}: ${h.score}점 (${h.rating})`).join('\n')
-    : '';
+    : '\n[누적 히스토리: 아직 쌓이지 않음 — RapidAPI 기준점 데이터만 활용]';
 
   const prompt = `당신은 미국 주식시장 심리 분석 전문가입니다.
 오늘의 Fear & Greed Index 데이터를 바탕으로 한국어 시장 리포트를 작성해주세요.
 
-[오늘 데이터]
+[오늘 데이터 — RapidAPI 실시간]
 - 현재 점수: ${d.score}점 (${d.rating})
-- 전일 대비: ${d.prev_close} → ${d.score} (${diffStr})
+- 전일 대비: ${d.prev_close}점 → ${d.score}점 (${diffStr})
 - 1주 전: ${d.prev_1_week}점 / 1개월 전: ${d.prev_1_month}점 / 1년 전: ${d.prev_1_year}점
 ${historyText}
+
+※ Firebase 누적 히스토리가 있으면 RapidAPI 기준점보다 우선 활용하여 실제 추세를 분석하세요.
 
 [점수 기준]
 0~24: 극도의 공포 / 25~44: 공포 / 45~55: 중립 / 56~75: 탐욕 / 76~100: 극도의 탐욕
@@ -458,6 +460,15 @@ ${historyText}
 4. 이 심리 구간에서 역사적으로 시장이 어떻게 움직였는지
 5. 현재 투자자들이 주의해야 할 점
 
+[주요 매크로 데이터 검색]
+웹 검색으로 오늘 기준 최신 매크로 데이터를 찾아서 아래 항목을 채우세요:
+- 미국 10년 국채 금리 (%)
+- 미국 30년 국채 금리 (%)
+- 달러 인덱스 (DXY)
+- VIX 지수
+- 금 가격 ($/oz)
+- WTI 원유 ($/배럴)
+
 [주요 경제 이슈 검색]
 웹 검색으로 오늘 기준 국내외 주요 경제 이슈를 찾아서 중복 없이 5개를 선별하세요.
 각 이슈마다 한 줄 요약과 시장에 미치는 영향을 📈 긍정 / 📉 부정 / ➡️ 중립으로 표시하세요.
@@ -468,6 +479,16 @@ ${historyText}
 📊 [첫째 줄 요약]
 📈 [둘째 줄 요약]
 ---
+**📊 주요 매크로 지표**
+| 지표 | 현재값 | 전일 대비 |
+|------|--------|-----------|
+| 미국 10년 국채 | X.XX% | ▲/▼ |
+| 미국 30년 국채 | X.XX% | ▲/▼ |
+| 달러 인덱스 | XXX.X | ▲/▼ |
+| VIX | XX.X | ▲/▼ |
+| 금 | $X,XXX | ▲/▼ |
+| WTI 원유 | $XX.X | ▲/▼ |
+
 **📰 주요 경제 이슈 (5개)**
 1. [이슈명] 📈/📉/➡️
    → [한 줄 설명 + 시장 영향]
@@ -480,8 +501,9 @@ ${historyText}
 - 이 점수대에서 역사적으로 시장이 어떻게 움직였는지 (반등? 추가 하락?)
 - 현재 심리 구간에서 투자자들이 주의해야 할 점
 
-**🔗 경제 이슈 × Fear & Greed 종합 분석**
-- 위 5개 경제 이슈가 현재 공포지수에 어떤 영향을 미쳤는지
+**🔗 매크로 × 경제 이슈 × Fear & Greed 종합 분석**
+- 금리/달러/VIX 등 매크로 지표가 현재 공포지수에 어떤 영향을 미쳤는지
+- 5개 경제 이슈가 매크로 흐름과 어떻게 연결되는지
 - 긍정/부정 이슈들이 서로 상충할 경우 어느 쪽이 더 강한 영향을 줄지
 - 앞으로 공포지수가 어떻게 움직일지 추론
 
@@ -501,7 +523,7 @@ ${historyText}
     },
     body: JSON.stringify({
       model: 'claude-sonnet-4-5',
-      max_tokens: 2500,
+      max_tokens: 3500,
       tools: [{ type: 'web_search_20250305', name: 'web_search' }],
       messages: [{ role: 'user', content: prompt }]
     })
