@@ -476,7 +476,8 @@ ${historyText}
 5. 현재 투자자들이 주의해야 할 점
 
 [주요 매크로 데이터 검색]
-웹 검색으로 오늘 기준 최신 매크로 데이터를 찾아서 아래 항목을 채우세요:
+웹 검색으로 오늘(${new Date().toISOString().slice(0,10)}) 기준 최신 데이터를 검색하세요.
+검색 과정은 출력하지 말고 결과만 리포트에 포함하세요.
 - 미국 10년 국채 금리 (%)
 - 미국 30년 국채 금리 (%)
 - 달러 인덱스 (DXY)
@@ -545,12 +546,11 @@ ${historyText}
   });
   const json = await res.json();
   if(json.error) throw new Error(json.error.message);
-  // tool_use 블록 제외하고 text만 추출
-  const text = json.content
-    .filter(b => b.type === 'text')
-    .map(b => b.text)
-    .join('');
-  return text;
+  // tool_use/tool_result 블록 제외하고 마지막 text만 추출
+  const textBlocks = json.content.filter(b => b.type === 'text');
+  if(!textBlocks.length) throw new Error('리포트 생성 실패');
+  // 마지막 text 블록이 최종 리포트
+  return textBlocks[textBlocks.length - 1].text;
 }
 
 // Firestore에 저장
@@ -617,3 +617,18 @@ async function updateFearGreed() {
 window.updateFearGreed       = updateFearGreed;
 window.loadFearGreed         = loadFearGreed;
 window.toggleFearGreedReport = toggleFearGreedReport;
+
+// 오늘 데이터 강제 재생성 (관리자용)
+window.forceUpdateFearGreed = async function() {
+  const today = new Date().toISOString().slice(0, 10);
+  // 오늘 문서 삭제 후 재생성
+  try {
+    const { deleteDoc } = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js');
+    await deleteDoc(doc(db, 'fear_greed_reports', today));
+    showToast('🗑️ 오늘 데이터 삭제됨. 재생성 중...');
+    await loadFearGreed();
+    await updateFearGreed();
+  } catch(e) {
+    showToast('❌ ' + e.message);
+  }
+};
