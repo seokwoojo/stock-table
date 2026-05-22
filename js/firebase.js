@@ -524,10 +524,12 @@ ${historyText}
 - 앞으로 공포지수가 어떻게 움직일지 추론
 
 [주의사항]
+- 전체 리포트는 반드시 4000토큰 이내로 작성하세요 (잘리지 않도록)
 - 투자 권유 금지, 시장 심리 분석만
 - 이모지/볼드체 사용, 마크다운 헤더(##) 금지
 - 읽기 편한 톤으로 작성
-- 점수 수치는 반드시 위 데이터에 있는 값만 그대로 사용할 것 (임의로 바꾸지 말 것)`;
+- 점수 수치는 반드시 위 데이터에 있는 값만 그대로 사용할 것 (임의로 바꾸지 말 것)
+- 검색 과정("검색하겠습니다" 등)은 절대 출력하지 말 것, 결과만 작성할 것`;
 
   const res = await fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
@@ -539,7 +541,7 @@ ${historyText}
     },
     body: JSON.stringify({
       model: 'claude-sonnet-4-5',
-      max_tokens: 3500,
+      max_tokens: 6000,
       tools: [{ type: 'web_search_20250305', name: 'web_search' }],
       messages: [{ role: 'user', content: prompt }]
     })
