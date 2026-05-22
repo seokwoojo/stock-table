@@ -284,8 +284,17 @@ async function loadFearGreed() {
     const snapshot = await getDocs(q);
 
     if(snapshot.empty) {
+      const kstHour = new Date(new Date().toLocaleString('en-US', {timeZone: 'Asia/Seoul'})).getHours();
       const btn = document.getElementById('fg-update-btn');
-      if(btn) { btn.disabled = false; btn.style.opacity = '1'; btn.style.cursor = 'pointer'; btn.textContent = '🔄 업데이트'; }
+      if(btn) {
+        if(kstHour < 6) {
+          btn.disabled = true; btn.style.opacity = '0.4';
+          btn.style.cursor = 'not-allowed'; btn.textContent = '⏰ 6시 이후 가능';
+        } else {
+          btn.disabled = false; btn.style.opacity = '1';
+          btn.style.cursor = 'pointer'; btn.textContent = '🔄 업데이트';
+        }
+      }
       return;
     }
 
@@ -314,9 +323,15 @@ async function loadFearGreed() {
         btn.disabled = true; btn.style.opacity = '0.4';
         btn.style.cursor = 'not-allowed'; btn.textContent = '✅ 오늘 완료';
       } else {
-        // 그 외 → 활성화
-        btn.disabled = false; btn.style.opacity = '1';
-        btn.style.cursor = 'pointer'; btn.textContent = '🔄 업데이트';
+        // 오전 6시 이후만 활성화 (KST)
+        const kstHour = new Date(new Date().toLocaleString('en-US', {timeZone: 'Asia/Seoul'})).getHours();
+        if(kstHour < 6) {
+          btn.disabled = true; btn.style.opacity = '0.4';
+          btn.style.cursor = 'not-allowed'; btn.textContent = '⏰ 6시 이후 가능';
+        } else {
+          btn.disabled = false; btn.style.opacity = '1';
+          btn.style.cursor = 'pointer'; btn.textContent = '🔄 업데이트';
+        }
       }
     }
 
