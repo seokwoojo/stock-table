@@ -483,11 +483,10 @@ ${historyText}
 **😱 Fear & Greed 지수 분석**
 - 현재 점수/등급 의미와 시장 심리 해석
 - 전일/1주/1개월/1년 + 누적 히스토리 기반 추세 방향 분석
-- 이 점수대에서 역사적으로 VIX가 어떤 수준이었는지, 현재 심리가 VIX에 어떤 영향을 줄지
-- 역사적 패턴 (이 구간에서 시장이 반등했는지 추가 하락했는지)
+- 역사적 패턴: 이 점수 구간에서 시장이 어떻게 움직였는지 (긍정/부정 시나리오, 확률 포함)
 
 **📊 종합 의견**
-- 추세 + VIX 관점에서 현재 시장 심리 평가
+- 현재 심리 구간 평가
 - 앞으로 공포지수 방향성 추론 및 투자자 주의사항
 
 [주의사항]
@@ -514,11 +513,7 @@ ${historyText}
   });
   const json = await res.json();
   if(json.error) throw new Error(json.error.message);
-  // tool_use/tool_result 블록 제외하고 마지막 text만 추출
-  const textBlocks = json.content.filter(b => b.type === 'text');
-  if(!textBlocks.length) throw new Error('리포트 생성 실패');
-  // 마지막 text 블록이 최종 리포트
-  return textBlocks[textBlocks.length - 1].text;
+  return json.content[0].text;
 }
 
 // Firestore에 저장
