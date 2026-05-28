@@ -86,24 +86,37 @@ function renderSavings(){
       const unreal = val - principal;
       current = principal + unreal + real + div;
 
-      // 종목별 이득/손실 분리
+      // 거래별로 실현 손익 분리 계산
       p.stocks.forEach(st => {
-        const pos      = calcPosition(st);
-        const qty      = (pos.qty !== undefined) ? pos.qty : (st.baseQty || 0);
-        const avgPrice = (pos.avgPrice !== undefined) ? pos.avgPrice : (st.baseAvgPrice || 0);
-        const stVal    = qty * st.curPrice;
-        const stCost   = qty * avgPrice;
-        const unreal   = stVal - stCost;
-        const realized = pos.realizedPnl;
-        const accDiv   = st.accumulatedDividend || 0;
-        const totalPnl = unreal + realized + accDiv;
-        if(totalPnl >= 0) totalGain += totalPnl;
-        else              totalLoss += totalPnl;
+        const trades = st.trades || [];
+        let qty = st.baseQty || 0;
+        let costBasis = qty * (st.baseAvgPrice || 0);
+        for(const t of trades){
+          if(t.type === '매수'){
+            qty += t.qty;
+            costBasis += t.qty * t.price;
+          } else {
+            const avgCost = qty > 0 ? costBasis / qty : 0;
+            const tradePnl = (t.price - avgCost) * t.qty;
+            if(tradePnl >= 0) realizedGain += tradePnl;
+            else              realizedLoss += tradePnl;
+            qty -= t.qty;
+            costBasis -= avgCost * t.qty;
+            if(qty < 0) qty = 0;
+            if(costBasis < 0) costBasis = 0;
+          }
+        }
+        // 미실현+실현+배당 합산 (종목 전체 기준)
+        const pos = calcPosition(st);
+        const q   = (pos.qty !== undefined) ? pos.qty : (st.baseQty || 0);
+        const ap  = (pos.avgPrice !== undefined) ? pos.avgPrice : (st.baseAvgPrice || 0);
+        const unreal = q * st.curPrice - q * ap;
+        const div    = st.accumulatedDividend || 0;
+        const stPnl  = unreal + pos.realizedPnl + div;
+        if(stPnl >= 0) totalGain += stPnl;
+        else           totalLoss += stPnl;
+        accDivTotal += div;
       });
-      // 실현 이득/손실, 누적 배당 집계
-      realizedGain = p.stocks.reduce((a,st)=>{ const r=calcPosition(st).realizedPnl; return r>0?a+r:a; },0);
-      realizedLoss = p.stocks.reduce((a,st)=>{ const r=calcPosition(st).realizedPnl; return r<0?a+r:a; },0);
-      accDivTotal  = p.stocks.reduce((a,st)=>a+(st.accumulatedDividend||0),0);
     } else {
       const m = maturityEntry;
       if(m && m.startDate && s.monthlyAmt > 0){
