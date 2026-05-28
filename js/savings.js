@@ -112,9 +112,7 @@ function renderSavings(){
         const ap  = (pos.avgPrice !== undefined) ? pos.avgPrice : (st.baseAvgPrice || 0);
         const unreal = q * st.curPrice - q * ap;
         const div    = st.accumulatedDividend || 0;
-        const stPnl  = unreal + pos.realizedPnl + div;
-        if(stPnl >= 0) totalGain += stPnl;
-        else           totalLoss += stPnl;
+        totalGain += unreal + pos.realizedPnl + div;
         accDivTotal += div;
       });
     } else {
@@ -174,7 +172,7 @@ function renderSavings(){
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:4px;margin-bottom:10px;">
         <div style="background:var(--red-dim);border-radius:2px;padding:4px 8px;">
           <div style="font-size:9px;color:var(--muted);margin-bottom:2px;">미실현+실현+배당</div>
-          <div style="font-family:var(--mono);font-size:11px;font-weight:700;color:var(--red);">${totalGain>0?'+':''}${fmtKRW(Math.round(totalGain))}</div>
+          <div style="font-family:var(--mono);font-size:11px;font-weight:700;color:${totalGain>=0?'var(--red)':'var(--cyan)'};">${totalGain>=0?'+':''}${fmtKRW(Math.round(totalGain))}</div>
         </div>
         <div style="background:var(--cyan-dim);border-radius:2px;padding:4px 8px;">
           <div style="font-size:9px;color:var(--muted);margin-bottom:2px;">실현 손실</div>
