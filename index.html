@@ -179,6 +179,10 @@
           자세히 보기
         </button>
       </div>
+      <!-- Fear & Greed 차트 -->
+      <div id="fg-chart-wrap" style="display:none;margin-top:12px;">
+        <canvas id="fg-chart" height="80"></canvas>
+      </div>
       <!-- 두 줄 요약 -->
       <div id="fg-summary" style="font-size:12px;color:var(--text2);line-height:1.7;white-space:pre-line;"></div>
       <!-- 전체 리포트 (접힘) -->
@@ -236,6 +240,7 @@
 </div><!-- /wrap -->
 </div><!-- /main-content -->
 
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 <script src="js/state.js"></script>
 <script src="js/utils.js"></script>
 <script src="js/savings.js"></script>

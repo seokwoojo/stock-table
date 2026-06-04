@@ -370,6 +370,9 @@ async function loadFearGreed() {
     const section = document.getElementById('fear-greed-section');
     if(section) section.style.display = 'block';
 
+    // 차트 그리기 (히스토리 데이터로)
+    renderFGChart();
+
   } catch(e) {
     console.error('Fear & Greed 로드 실패:', e);
   }
@@ -576,6 +579,79 @@ async function updateFearGreed() {
     if(btn) { btn.disabled = false; btn.style.opacity = '1'; btn.textContent = '🔄 업데이트'; }
   }
 }
+
+// ─────────────── Fear & Greed 차트 ───────────────
+let fgChartInstance = null;
+
+async function renderFGChart() {
+  try {
+    const snap = await getDocs(
+      query(collection(db, 'fear_greed_reports'), orderBy('date', 'asc'), limit(30))
+    );
+    if(snap.empty) return;
+
+    const wrap = document.getElementById('fg-chart-wrap');
+    if(!wrap) return;
+    wrap.style.display = 'block';
+
+    const labels = snap.docs.map(d => d.data().date.slice(5)); // MM-DD
+    const scores = snap.docs.map(d => d.data().score);
+
+    // 색상: 점수별
+    const colors = scores.map(s =>
+      s >= 76 ? '#ef5350' :
+      s >= 56 ? '#ff8a65' :
+      s >= 45 ? '#ffd54f' :
+      s >= 25 ? '#81c784' : '#4fc3f7'
+    );
+
+    if(fgChartInstance) fgChartInstance.destroy();
+
+    const ctx = document.getElementById('fg-chart').getContext('2d');
+    fgChartInstance = new Chart(ctx, {
+      type: 'line',
+      data: {
+        labels,
+        datasets: [{
+          data: scores,
+          borderColor: 'rgba(0,230,118,0.8)',
+          backgroundColor: 'rgba(0,230,118,0.1)',
+          pointBackgroundColor: colors,
+          pointRadius: 4,
+          tension: 0.3,
+          fill: true,
+        }]
+      },
+      options: {
+        responsive: true,
+        plugins: {
+          legend: { display: false },
+          tooltip: {
+            callbacks: {
+              label: ctx => `${ctx.parsed.y}점`
+            }
+          }
+        },
+        scales: {
+          x: {
+            ticks: { color: '#b0bec5', font: { size: 10 } },
+            grid:  { color: 'rgba(255,255,255,0.05)' }
+          },
+          y: {
+            min: 0, max: 100,
+            ticks: { color: '#b0bec5', font: { size: 10 },
+              callback: v => v === 25 ? '공포' : v === 50 ? '중립' : v === 75 ? '탐욕' : v
+            },
+            grid: { color: 'rgba(255,255,255,0.05)' }
+          }
+        }
+      }
+    });
+  } catch(e) {
+    console.error('차트 오류:', e);
+  }
+}
+window.renderFGChart = renderFGChart;
 
 window.updateFearGreed       = updateFearGreed;
 window.loadFearGreed         = loadFearGreed;
