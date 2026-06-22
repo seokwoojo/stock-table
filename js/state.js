@@ -6,6 +6,7 @@ const state = {
   gasUrl: 'https://script.google.com/macros/s/AKfycbyAOd0dOOl_NFaxVeX3NLdc5V0PSTo7p2LYxAJbHBfAZ2g21vCzvyYQkhYCg6fKrMg/exec',
   memo: '',
   deletedFixedTypes: [],
+  exchangeRate: 1350, // USD→KRW 기본값, 시세갱신 시 업데이트
 };
 
 // 계좌 타입

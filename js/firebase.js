@@ -461,6 +461,19 @@ async function fetchUSStocksPrices(symbols) {
 }
 window.fetchUSStocksPrices = fetchUSStocksPrices;
 
+// 환율 조회 (USD → KRW, 무료, 키 불필요)
+async function fetchExchangeRate() {
+  try {
+    const res = await fetch('https://open.er-api.com/v6/latest/USD');
+    const data = await res.json();
+    return data.rates.KRW;
+  } catch(e) {
+    console.error('환율 조회 실패:', e);
+    return null;
+  }
+}
+window.fetchExchangeRate = fetchExchangeRate;
+
 // CNN Fear & Greed API 호출 (RapidAPI 경유 — CORS 허용, 7개 세부지표 포함)
 async function fetchCNNFearGreed(rapidApiKey) {
   const res = await fetch('https://fear-and-greed-index.p.rapidapi.com/v1/fgi', {

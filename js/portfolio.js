@@ -21,6 +21,12 @@ function calcPosition(s){
   return { qty, avgPrice, realizedPnl };
 }
 
+// 종목 가격 표시용 헬퍼 (해외주식이면 $ 표시)
+function priceLabel(s){
+  if(s.isUSD) return '$' + s.curPrice;
+  return fmtKRW(s.curPrice);
+}
+
 // ─────────────── PORTFOLIO ───────────────
 const FIXED_PORTFOLIO_TYPES = ['ISA','CMA','과세 연금저축','비과세 연금저축','IRP'];
 
@@ -223,7 +229,10 @@ function openTradeModal(pid){
           <div style="display:flex;align-items:center;gap:6px;">
             <span style="font-size:11px;color:var(--muted);">평단가</span>
             <input type="text" inputmode="numeric" id="modal-base-price" placeholder="0" style="max-width:100px;font-family:var(--mono);font-size:12px;" onfocus="this.select()">
-            <span style="font-size:11px;color:var(--muted);">원</span>
+            <select id="modal-base-currency" style="font-family:var(--mono);font-size:11px;background:var(--surface2);border:1px solid var(--border);color:var(--text2);padding:4px 6px;border-radius:3px;">
+              <option value="KRW">원</option>
+              <option value="USD">$</option>
+            </select>
           </div>
           <button class="trade-btn trade-btn-confirm" onclick="setBasePos(${pid})" style="padding:5px 14px;">설정</button>
         </div>
@@ -238,7 +247,10 @@ function openTradeModal(pid){
           </div>
           <div style="display:flex;align-items:center;gap:4px;">
             <input type="text" inputmode="numeric" id="modal-trade-price" placeholder="가격" style="max-width:90px;font-family:var(--mono);font-size:12px;" onfocus="this.select()">
-            <span style="font-size:11px;color:var(--muted);">원</span>
+            <select id="modal-trade-currency" style="font-family:var(--mono);font-size:11px;background:var(--surface2);border:1px solid var(--border);color:var(--text2);padding:4px 6px;border-radius:3px;">
+              <option value="KRW">원</option>
+              <option value="USD">$</option>
+            </select>
           </div>
         </div>
       </div>
@@ -268,8 +280,11 @@ function setBasePos(pid){
   if(!s) return;
   const bqEl = document.getElementById('modal-base-qty');
   const bpEl = document.getElementById('modal-base-price');
+  const curEl = document.getElementById('modal-base-currency');
+  let price = parseComma(bpEl?.value||'0')||0;
+  if(curEl?.value === 'USD') price = price * (state.exchangeRate || 1350);
   s.baseQty      = parseComma(bqEl?.value||'0')||0;
-  s.baseAvgPrice = parseComma(bpEl?.value||'0')||0;
+  s.baseAvgPrice = Math.round(price);
   renderPortfolios(); renderSavings(); recalcAll(); scheduleSave();
   // 현재 포지션 요약 갱신
   updateModalStock(pid);
@@ -289,6 +304,12 @@ function updateModalStock(pid){
   const bpEl = document.getElementById('modal-base-price');
   if(bqEl) bqEl.value = s.baseQty ? fmtComma(s.baseQty) : '';
   if(bpEl) bpEl.value = s.baseAvgPrice ? fmtComma(s.baseAvgPrice) : '';
+
+  // 해외주식이면 통화를 USD로 자동 선택
+  const baseCurEl  = document.getElementById('modal-base-currency');
+  const tradeCurEl = document.getElementById('modal-trade-currency');
+  if(baseCurEl)  baseCurEl.value  = s.isUSD ? 'USD' : 'KRW';
+  if(tradeCurEl) tradeCurEl.value = s.isUSD ? 'USD' : 'KRW';
 
   // 현재 포지션 요약
   const pos = calcPosition(s);
@@ -348,24 +369,32 @@ function submitTrade(pid, type){
   // 기준 포지션 저장
   const bqEl = document.getElementById('modal-base-qty');
   const bpEl = document.getElementById('modal-base-price');
+  const baseCurEl = document.getElementById('modal-base-currency');
   if(bqEl && bpEl){
+    let basePrice = parseComma(bpEl.value)||0;
+    if(baseCurEl?.value === 'USD') basePrice = basePrice * (state.exchangeRate || 1350);
     s.baseQty      = parseComma(bqEl.value)||0;
-    s.baseAvgPrice = parseComma(bpEl.value)||0;
+    s.baseAvgPrice = Math.round(basePrice);
   }
 
   const dateEl  = document.getElementById('modal-trade-date');
   const qtyEl   = document.getElementById('modal-trade-qty');
   const priceEl = document.getElementById('modal-trade-price');
+  const tradeCurEl = document.getElementById('modal-trade-currency');
   const date    = dateEl?.value || '';
   const qty     = parseComma(qtyEl?.value||'0');
-  const price   = parseComma(priceEl?.value||'0');
+  let price     = parseComma(priceEl?.value||'0');
+  const isUSDTrade = tradeCurEl?.value === 'USD';
+  if(isUSDTrade) price = Math.round(price * (state.exchangeRate || 1350));
 
   if(!qty||!price){ showToast('⚠️ 수량과 가격을 입력하세요'); return; }
   const pos = calcPosition(s);
   if(type==='매도' && qty>pos.qty){ showToast(`⚠️ 보유 수량(${pos.qty}주)보다 많이 매도할 수 없습니다`); return; }
 
   const stockName = s.name||'종목';
-  if(!confirm(`${stockName} ${type} ${qty}주 @ ${fmtKRW(price)}\n총 ${fmtKRW(qty*price)}\n거래를 추가할까요?`)) return;
+  const origPrice = parseComma(priceEl?.value||'0');
+  const priceDisplay = isUSDTrade ? `$${origPrice} (₩${fmtKRW(price).replace('₩','')})` : fmtKRW(price);
+  if(!confirm(`${stockName} ${type} ${qty}주 @ ${priceDisplay}\n총 ${fmtKRW(qty*price)}\n거래를 추가할까요?`)) return;
 
   if(!s.trades) s.trades=[];
   s.trades.push({ id:uid(), date, type, qty, price });
@@ -598,9 +627,11 @@ async function lookupStock(pid, sid){
       const usData = await fetchUSStocksPrices([s.code.trim().toUpperCase()]);
       const info = usData[s.code.trim().toUpperCase()];
       if(info.error){ showToast('❌ ' + info.error); return; }
-      s.curPrice = info.price;
+      s.usdPrice = info.price;
+      s.curPrice = info.price * (state.exchangeRate || 1350);
+      s.isUSD = true;
       if(!s.name) s.name = s.code.trim().toUpperCase();
-      showToast(`✅ ${s.code.trim().toUpperCase()} $${info.price}`);
+      showToast(`✅ ${s.code.trim().toUpperCase()} $${info.price} (₩${Math.round(s.curPrice).toLocaleString('ko-KR')})`);
     }
     renderPortfolios();
     renderSavings();
@@ -622,10 +653,16 @@ async function refreshAllPrices(){
   const domesticCodes = [...new Set(allStocks.filter(s=>isDomestic(s.code)).map(s=>s.code.trim()))];
   const usCodes       = [...new Set(allStocks.filter(s=>!isDomestic(s.code)).map(s=>s.code.trim().toUpperCase()))];
 
-  showToast('🔄 전체 시세 업데이트 중...');
+  showToast('🔄 전체 시세 + 환율 업데이트 중...');
   let updated = 0;
 
   try {
+    // 0. 환율 조회
+    if(usCodes.length){
+      const rate = await fetchExchangeRate();
+      if(rate) state.exchangeRate = rate;
+    }
+
     // 1. 국내 주식 (GAS → 네이버)
     if(domesticCodes.length){
       const res  = await fetch(`${state.gasUrl}?codes=${domesticCodes.join(',')}`);
@@ -651,7 +688,9 @@ async function refreshAllPrices(){
           if(!s.code || isDomestic(s.code)) return;
           const info = usData[s.code.trim().toUpperCase()];
           if(info && !info.error){
-            s.curPrice = info.price;
+            s.usdPrice = info.price;            // 달러 원본 가격 (표시용)
+            s.curPrice = info.price * (state.exchangeRate || 1350); // 원화 환산 (계산용)
+            s.isUSD = true;
             updated++;
           }
         });
