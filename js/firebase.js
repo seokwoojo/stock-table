@@ -421,6 +421,46 @@ async function getRapidApiKey() {
   }
 }
 
+// Finnhub 키를 Firebase에서 가져오기
+async function getFinnhubKey() {
+  try {
+    const snap = await getDoc(doc(db, 'config', 'api_keys'));
+    if(!snap.exists()) throw new Error('Finnhub 키가 없습니다');
+    return snap.data().finnhub_key;
+  } catch(e) {
+    throw new Error('Finnhub 키 로드 실패: ' + e.message);
+  }
+}
+
+// 해외주식 시세 조회 (Finnhub)
+async function fetchUSStockPrice(symbol, finnhubKey) {
+  const res = await fetch(`https://finnhub.io/api/v1/quote?symbol=${symbol}&token=${finnhubKey}`);
+  if(!res.ok) throw new Error('Finnhub 오류: ' + res.status);
+  const data = await res.json();
+  if(data.c === undefined || data.c === 0) throw new Error('종목을 찾을 수 없습니다: ' + symbol);
+  return {
+    price: data.c,       // 현재가
+    prevClose: data.pc,  // 전일 종가
+    change: data.d,      // 변동액
+    changePct: data.dp,  // 변동률
+  };
+}
+
+// 여러 해외종목 한번에 조회
+async function fetchUSStocksPrices(symbols) {
+  const finnhubKey = await getFinnhubKey();
+  const results = {};
+  for(const sym of symbols) {
+    try {
+      results[sym] = await fetchUSStockPrice(sym, finnhubKey);
+    } catch(e) {
+      results[sym] = { error: e.message };
+    }
+  }
+  return results;
+}
+window.fetchUSStocksPrices = fetchUSStocksPrices;
+
 // CNN Fear & Greed API 호출 (RapidAPI 경유 — CORS 허용, 7개 세부지표 포함)
 async function fetchCNNFearGreed(rapidApiKey) {
   const res = await fetch('https://fear-and-greed-index.p.rapidapi.com/v1/fgi', {

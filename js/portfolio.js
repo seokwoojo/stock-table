@@ -605,30 +605,52 @@ async function refreshAllPrices(){
   const allStocks = state.portfolios.flatMap(p => p.stocks.filter(s => s.code));
   if(!allStocks.length){ showToast('⚠️ 종목 코드가 입력된 종목이 없습니다'); return; }
 
-  const codes = [...new Set(allStocks.map(s=>s.code.trim()))].join(',');
+  // 국내(숫자 6자리) / 해외(알파벳) 구분
+  const isDomestic = code => /^\d{6}$/.test(code.trim());
+  const domesticCodes = [...new Set(allStocks.filter(s=>isDomestic(s.code)).map(s=>s.code.trim()))];
+  const usCodes       = [...new Set(allStocks.filter(s=>!isDomestic(s.code)).map(s=>s.code.trim().toUpperCase()))];
+
   showToast('🔄 전체 시세 업데이트 중...');
+  let updated = 0;
+
   try {
-    const res  = await fetch(`${state.gasUrl}?codes=${codes}`);
-    const data = await res.json();
-    let updated = 0;
-    state.portfolios.forEach(p => {
-      p.stocks.forEach(s => {
-        if(!s.code) return;
-        const info = data[s.code.trim()];
-        if(info && !info.error){
-          if(info.name)  s.name     = info.name;
-          if(info.price) s.curPrice = Number(info.price);
-          updated++;
-        }
+    // 1. 국내 주식 (GAS → 네이버)
+    if(domesticCodes.length){
+      const res  = await fetch(`${state.gasUrl}?codes=${domesticCodes.join(',')}`);
+      const data = await res.json();
+      state.portfolios.forEach(p => {
+        p.stocks.forEach(s => {
+          if(!s.code || !isDomestic(s.code)) return;
+          const info = data[s.code.trim()];
+          if(info && !info.error){
+            if(info.name)  s.name     = info.name;
+            if(info.price) s.curPrice = Number(info.price);
+            updated++;
+          }
+        });
       });
-    });
+    }
+
+    // 2. 해외 주식 (Finnhub)
+    if(usCodes.length){
+      const usData = await fetchUSStocksPrices(usCodes);
+      state.portfolios.forEach(p => {
+        p.stocks.forEach(s => {
+          if(!s.code || isDomestic(s.code)) return;
+          const info = usData[s.code.trim().toUpperCase()];
+          if(info && !info.error){
+            s.curPrice = info.price;
+            updated++;
+          }
+        });
+      });
+    }
+
     renderPortfolios();
     renderSavings();
     recalcAll();
     scheduleSave();
     showToast(`✅ ${updated}개 종목 시세 업데이트 완료`);
-
-
 
   } catch(e) {
     showToast('❌ 업데이트 실패: ' + e.message);
