@@ -579,21 +579,33 @@ async function lookupStock(pid, sid){
   if(!p) return;
   const s = p.stocks.find(x=>x.id===sid);
   if(!s) return;
-  if(!state.gasUrl){ showToast('⚠️ 설정에서 Google Apps Script URL을 먼저 입력하세요'); return; }
   if(!s.code){ showToast('⚠️ 종목 코드를 입력하세요'); return; }
+
+  const isDomestic = /^\d{6}$/.test(s.code.trim());
 
   showToast('🔍 조회 중...');
   try {
-    const res  = await fetch(`${state.gasUrl}?code=${s.code.trim()}`);
-    const data = await res.json();
-    if(data.error){ showToast('❌ ' + data.error); return; }
-    s.name     = data.name  || s.name;
-    s.curPrice = Number(data.price) || s.curPrice;
+    if(isDomestic){
+      if(!state.gasUrl){ showToast('⚠️ 설정에서 Google Apps Script URL을 먼저 입력하세요'); return; }
+      const res  = await fetch(`${state.gasUrl}?code=${s.code.trim()}`);
+      const data = await res.json();
+      if(data.error){ showToast('❌ ' + data.error); return; }
+      s.name     = data.name  || s.name;
+      s.curPrice = Number(data.price) || s.curPrice;
+      showToast(`✅ ${data.name} ₩${Number(data.price).toLocaleString('ko-KR')}`);
+    } else {
+      // 해외 주식 (Finnhub)
+      const usData = await fetchUSStocksPrices([s.code.trim().toUpperCase()]);
+      const info = usData[s.code.trim().toUpperCase()];
+      if(info.error){ showToast('❌ ' + info.error); return; }
+      s.curPrice = info.price;
+      if(!s.name) s.name = s.code.trim().toUpperCase();
+      showToast(`✅ ${s.code.trim().toUpperCase()} $${info.price}`);
+    }
     renderPortfolios();
     renderSavings();
     recalcAll();
     scheduleSave();
-    showToast(`✅ ${data.name} ₩${Number(data.price).toLocaleString('ko-KR')}`);
   } catch(e) {
     showToast('❌ 조회 실패: ' + e.message);
   }
