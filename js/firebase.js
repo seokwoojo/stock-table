@@ -55,7 +55,7 @@ async function saveToFirebase() {
       idCnt: window.idCnt,
       updatedAt:  new Date().toISOString(),
     };
-    await db.doc( 'users', currentUser.uid), data);
+    await setDoc(doc(db, 'users', currentUser.uid), data);
     showToast('☁️ 클라우드 저장됨');
   } catch(e) {
     showToast('❌ 저장 실패: ' + e.message);
@@ -76,7 +76,7 @@ async function loadFromFirebase() {
   window.idCnt            = 1;
 
   try {
-    const snap = await db.doc( 'users', currentUser.uid));
+    const snap = await getDoc(doc(db, 'users', currentUser.uid));
     if (!snap.exists()) {
       // 이 계정의 Firebase 데이터가 없음 → 빈 상태로 시작
       if(typeof initDefaultSavings === 'function') initDefaultSavings();
@@ -177,7 +177,7 @@ async function saveYearSnapshot(year){
       memo:       window.state.memo || '',
       idCnt: window.idCnt,
     };
-    await db.doc( 'users', currentUser.uid, 'snapshots', String(year)), data);
+    await setDoc(doc(db, 'users', currentUser.uid, 'snapshots', String(year)), data);
     showToast(`✅ ${year}년 스냅샷 저장됨`);
     renderSnapshotButtons();
   } catch(e) {
@@ -189,7 +189,7 @@ async function loadYearSnapshot(year){
   if(!currentUser) return;
   if(!confirm(`${year}년 데이터를 불러올까요?\n현재 데이터는 변경되지 않습니다. (읽기 전용 미리보기)`)) return;
   try {
-    const snap = await db.doc( 'users', currentUser.uid, 'snapshots', String(year)));
+    const snap = await getDoc(doc(db, 'users', currentUser.uid, 'snapshots', String(year)));
     if(!snap.exists()){ showToast(`❌ ${year}년 스냅샷이 없습니다`); return; }
     const data = snap.data();
     // 임시로 state에 로드 (현재 데이터 백업)
@@ -233,7 +233,7 @@ async function renderSnapshotButtons(){
     const currentYear = new Date().getFullYear();
     const years = [];
     for(let y = currentYear; y >= currentYear - 4; y--){
-      const snap = await db.doc( 'users', currentUser.uid, 'snapshots', String(y)));
+      const snap = await getDoc(doc(db, 'users', currentUser.uid, 'snapshots', String(y)));
       if(snap.exists()) years.push(y);
     }
     const isPreview = window._isPreview;
@@ -261,7 +261,7 @@ async function checkYearEndSnapshot(){
   const now = new Date();
   if(now.getMonth()===11 && now.getDate()===31){
     const year = now.getFullYear();
-    const snap = await db.doc( 'users', currentUser.uid, 'snapshots', String(year)));
+    const snap = await getDoc(doc(db, 'users', currentUser.uid, 'snapshots', String(year)));
     if(!snap.exists()){
       await saveYearSnapshot(year);
     }
