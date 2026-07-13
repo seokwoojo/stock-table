@@ -194,6 +194,146 @@ function toggleAccount(id){
 }
 
 // 계좌별 거래 창 열기 — 종목 선택 드롭다운 팝업
+// ─────────────── 카톡 붙여넣기 기능 ───────────────
+let _kakaoTradeResult = null; // 파싱된 거래 임시 저장
+let _kakaoPid = null;
+
+function switchTradeTab(tab) {
+  const manual = document.getElementById('panel-manual');
+  const kakao  = document.getElementById('panel-kakao');
+  const tabM   = document.getElementById('tab-manual');
+  const tabK   = document.getElementById('tab-kakao');
+  if(!manual || !kakao) return;
+  if(tab === 'kakao'){
+    manual.style.display = 'none';
+    kakao.style.display  = 'block';
+    tabM.style.background = 'transparent'; tabM.style.color = 'var(--muted)'; tabM.style.borderBottom = '2px solid transparent';
+    tabK.style.background = 'var(--accent-dim)'; tabK.style.color = 'var(--accent)'; tabK.style.borderBottom = '2px solid var(--accent)';
+  } else {
+    kakao.style.display  = 'none';
+    manual.style.display = 'block';
+    tabK.style.background = 'transparent'; tabK.style.color = 'var(--muted)'; tabK.style.borderBottom = '2px solid transparent';
+    tabM.style.background = 'var(--accent-dim)'; tabM.style.color = 'var(--accent)'; tabM.style.borderBottom = '2px solid var(--accent)';
+  }
+}
+
+async function parseKakaoTrade(pid) {
+  const text = document.getElementById('kakao-text')?.value?.trim();
+  if(!text){ showToast('⚠️ 카톡 내용을 붙여넣으세요'); return; }
+  showToast('🔍 분석 중...');
+  try {
+    const result = parseText(text);
+    showKakaoResult(result, pid);
+  } catch(e) {
+    showToast('❌ 분석 실패: ' + e.message);
+  }
+}
+
+async function parseKakaoWithAI(pid) {
+  const text = document.getElementById('kakao-text')?.value?.trim();
+  if(!text){ showToast('⚠️ 카톡 내용을 붙여넣으세요'); return; }
+  showToast('🤖 AI 분석 중...');
+  try {
+    if(typeof window.getAnthropicKey !== 'function'){ showToast('❌ Firebase 초기화가 필요합니다'); return; }
+    const apiKey = await window.getAnthropicKey();
+    if(!apiKey){ showToast('❌ Anthropic API 키가 없습니다'); return; }
+    const result = await extractTrade(text, true, apiKey);
+    showKakaoResult(result, pid);
+  } catch(e) {
+    showToast('❌ AI 분석 실패: ' + e.message);
+  }
+}
+
+function showKakaoResult(result, pid) {
+  _kakaoTradeResult = result;
+  _kakaoPid = pid;
+
+  const div = document.getElementById('kakao-result');
+  const btnDiv = document.getElementById('kakao-confirm-btns');
+  if(!div) return;
+
+  const priceDisplay = result.currency === 'USD'
+    ? `$${result.price} (₩${Math.round((result.price||0) * (state.exchangeRate||1350)).toLocaleString('ko-KR')})`
+    : `₩${(result.price||0).toLocaleString('ko-KR')}`;
+
+  div.style.display = 'block';
+  div.innerHTML = `
+    <div style="margin-bottom:6px;color:var(--text3);font-weight:700;">📊 분석 결과</div>
+    <div>증권사: <span style="color:var(--text);">${result.broker}</span></div>
+    <div>종목명: <span style="color:var(--accent);">${result.stock_name||'—'}</span></div>
+    <div>종목코드: <span style="color:var(--text);">${result.stock_code||'—'}</span></div>
+    <div>매매구분: <span style="color:${result.side==='매수'?'var(--red)':'var(--cyan)'};font-weight:700;">${result.side||'—'}</span></div>
+    <div>수량: <span style="color:var(--text);">${result.quantity||'—'}주</span></div>
+    <div>체결가: <span style="color:var(--text);">${priceDisplay}</span></div>
+    <div>거래일: <span style="color:var(--text);">${result.order_date||'—'}</span></div>
+    <div>시장: <span style="color:var(--muted);">${result.market}</span></div>
+    ${result.stock_name ? '' : '<div style="color:var(--red);margin-top:4px;">⚠️ 종목명을 인식하지 못했습니다. AI 분석을 시도해보세요.</div>'}
+  `;
+
+  if(btnDiv) btnDiv.style.display = result.side && result.quantity && result.price ? 'block' : 'none';
+
+  if(result.stock_name && result.side && result.quantity && result.price){
+    showToast(`✅ ${result.stock_name} ${result.side} ${result.quantity}주 분석 완료`);
+  } else {
+    showToast('⚠️ 일부 정보를 인식하지 못했습니다');
+  }
+}
+
+async function applyKakaoTrade(pid) {
+  const result = _kakaoTradeResult;
+  if(!result){ showToast('⚠️ 분석된 거래가 없습니다'); return; }
+
+  const p = state.portfolios.find(x=>x.id===pid);
+  if(!p){ showToast('❌ 포트폴리오를 찾을 수 없습니다'); return; }
+
+  // 종목코드로 기존 종목 찾기
+  let s = p.stocks.find(x => x.code === result.stock_code || x.name === result.stock_name);
+
+  // 없으면 새 종목 추가
+  if(!s){
+    if(!confirm(`"${result.stock_name}" 종목이 없습니다. 새로 추가할까요?`)) return;
+    const newId = uid();
+    s = {
+      id: newId,
+      name: result.stock_name || '',
+      code: result.stock_code || '',
+      curPrice: 0,
+      baseQty: 0,
+      baseAvgPrice: 0,
+      dividend: 0,
+      dividendCycle: '연',
+      dividendDate: '',
+      accumulatedDividend: 0,
+      monthlyBuy: 0,
+      trades: [],
+      isUSD: result.currency === 'USD',
+    };
+    p.stocks.push(s);
+  }
+
+  // 가격 환산 (USD면 원화로)
+  let price = result.price || 0;
+  if(result.currency === 'USD') price = Math.round(price * (state.exchangeRate || 1350));
+
+  const tradeConfirm = `${result.stock_name} ${result.side} ${result.quantity}주 @ ${fmtKRW(price)}\n거래를 추가할까요?`;
+  if(!confirm(tradeConfirm)) return;
+
+  if(!s.trades) s.trades = [];
+  s.trades.push({
+    type:  result.side,
+    qty:   result.quantity,
+    price: price,
+    date:  result.order_date || '',
+  });
+
+  renderPortfolios();
+  renderSavings();
+  recalcAll();
+  scheduleSave();
+  document.getElementById('trade-modal-overlay')?.remove();
+  showToast(`✅ ${result.stock_name} ${result.side} ${result.quantity}주 추가 완료`);
+}
+
 function openTradeModal(pid){
   const p = state.portfolios.find(x=>x.id===pid);
   if(!p) return;
@@ -210,55 +350,97 @@ function openTradeModal(pid){
   overlay.style.cssText = `position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:9000;display:flex;align-items:center;justify-content:center;`;
   overlay.innerHTML = `
     <div style="background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:28px 32px;min-width:340px;max-width:420px;width:90%;position:relative;">
-      <div style="font-size:13px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:var(--text3);margin-bottom:20px;">📋 거래 추가 — ${p.accountName}</div>
-      <div style="margin-bottom:16px;">
-        <div style="font-size:10px;color:var(--muted);letter-spacing:1px;text-transform:uppercase;margin-bottom:6px;">종목 선택</div>
-        <select id="modal-stock-select" style="width:100%;font-family:var(--mono);font-size:13px;background:var(--surface2);border:1px solid var(--border);color:var(--text);padding:8px 10px;border-radius:3px;">
-          ${options}
-        </select>
+      <div style="font-size:13px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:var(--text3);margin-bottom:16px;">📋 거래 추가 — ${p.accountName}</div>
+
+      <!-- 탭 -->
+      <div style="display:flex;gap:0;margin-bottom:16px;border-bottom:1px solid var(--border);">
+        <button id="tab-manual" onclick="switchTradeTab('manual')"
+          style="flex:1;padding:8px;font-family:var(--mono);font-size:11px;background:var(--accent-dim);color:var(--accent);border:none;border-bottom:2px solid var(--accent);cursor:pointer;">
+          ✍️ 직접 입력
+        </button>
+        <button id="tab-kakao" onclick="switchTradeTab('kakao')"
+          style="flex:1;padding:8px;font-family:var(--mono);font-size:11px;background:transparent;color:var(--muted);border:none;border-bottom:2px solid transparent;cursor:pointer;">
+          💬 카톡 붙여넣기
+        </button>
       </div>
-      <div id="modal-base-pos" style="background:var(--surface2);border:1px solid var(--border);border-radius:3px;padding:10px 14px;margin-bottom:16px;font-size:11px;color:var(--muted);"></div>
-      <div style="margin-bottom:16px;">
-        <div style="font-size:10px;color:var(--muted);letter-spacing:1px;text-transform:uppercase;margin-bottom:6px;">기준 포지션 (이전 거래 합산)</div>
-        <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
-          <div style="display:flex;align-items:center;gap:6px;">
-            <span style="font-size:11px;color:var(--muted);">수량</span>
-            <input type="text" inputmode="numeric" id="modal-base-qty" placeholder="0" style="max-width:80px;font-family:var(--mono);font-size:12px;" onfocus="this.select()">
-            <span style="font-size:11px;color:var(--muted);">주</span>
-          </div>
-          <div style="display:flex;align-items:center;gap:6px;">
-            <span style="font-size:11px;color:var(--muted);">평단가</span>
-            <input type="text" inputmode="numeric" id="modal-base-price" placeholder="0" style="max-width:100px;font-family:var(--mono);font-size:12px;" onfocus="this.select()">
-            <select id="modal-base-currency" style="font-family:var(--mono);font-size:11px;background:var(--surface2);border:1px solid var(--border);color:var(--text2);padding:4px 6px;border-radius:3px;">
-              <option value="KRW">원</option>
-              <option value="USD">$</option>
-            </select>
-          </div>
-          <button class="trade-btn trade-btn-confirm" onclick="setBasePos(${pid})" style="padding:5px 14px;">설정</button>
+
+      <!-- 카톡 탭 -->
+      <div id="panel-kakao" style="display:none;">
+        <textarea id="kakao-text" placeholder="카카오톡 체결 알림 내용을 붙여넣으세요.
+
+예시:
+NH투자증권
+주문일자: 06월 15일
+계좌명: 조*우
+매매구분: 매수
+종목명: 삼성전자
+체결수량: 10
+체결단가: 75,000"
+          style="width:100%;height:160px;background:var(--surface2);border:1px solid var(--border);color:var(--text);font-family:var(--mono);font-size:11px;padding:10px;border-radius:3px;resize:vertical;outline:none;box-sizing:border-box;line-height:1.6;"></textarea>
+        <div style="display:flex;gap:8px;margin-top:10px;">
+          <button class="trade-btn trade-btn-confirm" style="flex:1;" onclick="parseKakaoTrade(${pid})">🔍 분석</button>
+          <button class="trade-btn" onclick="parseKakaoWithAI(${pid})"
+            style="flex:1;background:var(--surface2);border:1px solid var(--border);color:var(--text3);">🤖 AI 분석</button>
+        </div>
+        <!-- 파싱 결과 미리보기 -->
+        <div id="kakao-result" style="display:none;margin-top:12px;background:var(--surface2);border:1px solid var(--border);border-radius:3px;padding:12px;font-family:var(--mono);font-size:11px;color:var(--text2);line-height:1.8;"></div>
+        <div id="kakao-confirm-btns" style="display:none;margin-top:10px;display:none;">
+          <button class="trade-btn trade-btn-buy" style="width:100%;" onclick="applyKakaoTrade(${pid})">✅ 이 거래 추가</button>
         </div>
       </div>
-      <div style="margin-bottom:16px;">
-        <div style="font-size:10px;color:var(--muted);letter-spacing:1px;text-transform:uppercase;margin-bottom:6px;">거래 입력</div>
-        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
-          <input type="text" inputmode="numeric" id="modal-trade-date" placeholder="YYYY/MM/DD" style="max-width:120px;font-family:var(--mono);font-size:12px;" oninput="dateTextInput(this)" onblur="dateTextBlur(this)">
-          <div style="display:flex;align-items:center;gap:4px;">
-            <input type="text" inputmode="numeric" id="modal-trade-qty" placeholder="수량" style="max-width:70px;font-family:var(--mono);font-size:12px;" onfocus="this.select()">
-            <span style="font-size:11px;color:var(--muted);">주</span>
-          </div>
-          <div style="display:flex;align-items:center;gap:4px;">
-            <input type="text" inputmode="numeric" id="modal-trade-price" placeholder="가격" style="max-width:90px;font-family:var(--mono);font-size:12px;" onfocus="this.select()">
-            <select id="modal-trade-currency" style="font-family:var(--mono);font-size:11px;background:var(--surface2);border:1px solid var(--border);color:var(--text2);padding:4px 6px;border-radius:3px;">
-              <option value="KRW">원</option>
-              <option value="USD">$</option>
-            </select>
+
+      <!-- 직접 입력 탭 -->
+      <div id="panel-manual">
+        <div style="margin-bottom:16px;">
+          <div style="font-size:10px;color:var(--muted);letter-spacing:1px;text-transform:uppercase;margin-bottom:6px;">종목 선택</div>
+          <select id="modal-stock-select" style="width:100%;font-family:var(--mono);font-size:13px;background:var(--surface2);border:1px solid var(--border);color:var(--text);padding:8px 10px;border-radius:3px;">
+            ${options}
+          </select>
+        </div>
+        <div id="modal-base-pos" style="background:var(--surface2);border:1px solid var(--border);border-radius:3px;padding:10px 14px;margin-bottom:16px;font-size:11px;color:var(--muted);"></div>
+        <div style="margin-bottom:16px;">
+          <div style="font-size:10px;color:var(--muted);letter-spacing:1px;text-transform:uppercase;margin-bottom:6px;">기준 포지션 (이전 거래 합산)</div>
+          <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
+            <div style="display:flex;align-items:center;gap:6px;">
+              <span style="font-size:11px;color:var(--muted);">수량</span>
+              <input type="text" inputmode="numeric" id="modal-base-qty" placeholder="0" style="max-width:80px;font-family:var(--mono);font-size:12px;" onfocus="this.select()">
+              <span style="font-size:11px;color:var(--muted);">주</span>
+            </div>
+            <div style="display:flex;align-items:center;gap:6px;">
+              <span style="font-size:11px;color:var(--muted);">평단가</span>
+              <input type="text" inputmode="numeric" id="modal-base-price" placeholder="0" style="max-width:100px;font-family:var(--mono);font-size:12px;" onfocus="this.select()">
+              <select id="modal-base-currency" style="font-family:var(--mono);font-size:11px;background:var(--surface2);border:1px solid var(--border);color:var(--text2);padding:4px 6px;border-radius:3px;">
+                <option value="KRW">원</option>
+                <option value="USD">$</option>
+              </select>
+            </div>
+            <button class="trade-btn trade-btn-confirm" onclick="setBasePos(${pid})" style="padding:5px 14px;">설정</button>
           </div>
         </div>
+        <div style="margin-bottom:16px;">
+          <div style="font-size:10px;color:var(--muted);letter-spacing:1px;text-transform:uppercase;margin-bottom:6px;">거래 입력</div>
+          <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+            <input type="text" inputmode="numeric" id="modal-trade-date" placeholder="YYYY/MM/DD" style="max-width:120px;font-family:var(--mono);font-size:12px;" oninput="dateTextInput(this)" onblur="dateTextBlur(this)">
+            <div style="display:flex;align-items:center;gap:4px;">
+              <input type="text" inputmode="numeric" id="modal-trade-qty" placeholder="수량" style="max-width:70px;font-family:var(--mono);font-size:12px;" onfocus="this.select()">
+              <span style="font-size:11px;color:var(--muted);">주</span>
+            </div>
+            <div style="display:flex;align-items:center;gap:4px;">
+              <input type="text" inputmode="numeric" id="modal-trade-price" placeholder="가격" style="max-width:90px;font-family:var(--mono);font-size:12px;" onfocus="this.select()">
+              <select id="modal-trade-currency" style="font-family:var(--mono);font-size:11px;background:var(--surface2);border:1px solid var(--border);color:var(--text2);padding:4px 6px;border-radius:3px;">
+                <option value="KRW">원</option>
+                <option value="USD">$</option>
+              </select>
+            </div>
+          </div>
+        </div>
+        <div style="display:flex;gap:8px;margin-bottom:16px;">
+          <button class="trade-btn trade-btn-buy" style="flex:1;" onclick="submitTrade(${pid},'매수')">＋ 매수</button>
+          <button class="trade-btn trade-btn-sell" style="flex:1;" onclick="submitTrade(${pid},'매도')">－ 매도</button>
+        </div>
+        <div id="modal-trade-log" style="max-height:200px;overflow-y:auto;"></div>
       </div>
-      <div style="display:flex;gap:8px;margin-bottom:16px;">
-        <button class="trade-btn trade-btn-buy" style="flex:1;" onclick="submitTrade(${pid},'매수')">＋ 매수</button>
-        <button class="trade-btn trade-btn-sell" style="flex:1;" onclick="submitTrade(${pid},'매도')">－ 매도</button>
-      </div>
-      <div id="modal-trade-log" style="max-height:200px;overflow-y:auto;"></div>
+
       <button onclick="document.getElementById('trade-modal-overlay').remove()"
         style="position:absolute;top:12px;right:14px;background:none;border:none;color:var(--muted);font-size:18px;cursor:pointer;line-height:1;">✕</button>
     </div>`;
