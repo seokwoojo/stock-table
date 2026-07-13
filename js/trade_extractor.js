@@ -4,7 +4,7 @@
 // Python trade_extractor.py를 JavaScript로 포팅
 // ─────────────────────────────────────────────────────────────────────
 
-const BROKERS = [
+const TE_BROKERS = [
   'NH투자증권', '한국투자증권', '삼성증권', '미래에셋증권', '키움증권',
   'KB증권', '신한투자증권', '하나증권', '대신증권', '유안타증권',
   '유진투자증권', 'SK증권', 'DB금융투자', '교보증권', '현대차증권',
@@ -108,7 +108,7 @@ function normalizeDate(s, year) {
 function parseText(text, year) {
   const fields = extractFields(text);
 
-  const broker = BROKERS.find(b => text.includes(b)) || '알수없음';
+  const broker = TE_BROKERS.find(b => text.includes(b)) || '알수없음';
 
   const sideRaw = fields.side || fields.exec_type || '';
   const side = sideRaw.includes('매도') ? '매도' : (sideRaw.includes('매수') ? '매수' : null);
