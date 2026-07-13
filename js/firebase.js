@@ -8,7 +8,6 @@ const firebaseConfig = {
   appId:             "1:308249338868:web:279127840b7817eec5cfa1"
 };
 
-
 // ─────────────── FIREBASE 초기화 ───────────────
 import { initializeApp }
   from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js';
@@ -46,13 +45,13 @@ async function saveToFirebase() {
     const data = {
       salary:     document.getElementById('salary')?.value    || '',
       projRate:   document.getElementById('proj-rate')?.value || '',
-      savings:    window.state.savings,
-      portfolios: window.state.portfolios,
-      maturity:   window.state.maturity,
-      gasUrl:     window.state.gasUrl,
-      memo:       window.state.memo || '',
-      deletedFixedTypes: window.state.deletedFixedTypes || [],
-      idCnt: window.idCnt,
+      savings:    state.savings,
+      portfolios: state.portfolios,
+      maturity:   state.maturity,
+      gasUrl:     state.gasUrl,
+      memo:       state.memo || '',
+      deletedFixedTypes: state.deletedFixedTypes || [],
+      idCnt,
       updatedAt:  new Date().toISOString(),
     };
     await setDoc(doc(db, 'users', currentUser.uid), data);
@@ -67,18 +66,16 @@ async function saveToFirebase() {
 async function loadFromFirebase() {
   if (!currentUser) return;
 
-  // 로그인 시 state 완전 초기화 (다른 계정 데이터 방지)
-  window.state.savings    = [];
-  window.state.portfolios = [];
-  window.state.maturity   = [];
-  window.state.memo       = '';
-  window.state.deletedFixedTypes = [];
-  window.idCnt            = 1;
+  state.savings    = [];
+  state.portfolios = [];
+  state.maturity   = [];
+  state.memo       = '';
+  state.deletedFixedTypes = [];
+  idCnt            = 1;
 
   try {
     const snap = await getDoc(doc(db, 'users', currentUser.uid));
     if (!snap.exists()) {
-      // 이 계정의 Firebase 데이터가 없음 → 빈 상태로 시작
       if(typeof initDefaultSavings === 'function') initDefaultSavings();
       showToast('👋 새 계정입니다. 데이터를 입력해주세요.');
       return;
@@ -88,18 +85,17 @@ async function loadFromFirebase() {
     const prEl  = document.getElementById('proj-rate');
     if(salEl && data.salary)    salEl.value   = data.salary;
     if(prEl  && data.projRate)  prEl.value    = data.projRate;
-    if(data.savings)           window.state.savings           = data.savings;
-    if(data.portfolios)        window.state.portfolios        = data.portfolios;
-    if(data.maturity)          window.state.maturity          = data.maturity;
-    if(data.gasUrl)            window.state.gasUrl            = data.gasUrl;
-    if(data.memo)              window.state.memo              = data.memo;
-    if(data.deletedFixedTypes) window.state.deletedFixedTypes = data.deletedFixedTypes;
-    if(data.idCnt)             window.idCnt                   = data.idCnt;
+    if(data.savings)           state.savings           = data.savings;
+    if(data.portfolios)        state.portfolios        = data.portfolios;
+    if(data.maturity)          state.maturity          = data.maturity;
+    if(data.gasUrl)            state.gasUrl            = data.gasUrl;
+    if(data.memo)              state.memo              = data.memo;
+    if(data.deletedFixedTypes) state.deletedFixedTypes = data.deletedFixedTypes;
+    if(data.idCnt)             idCnt                   = data.idCnt;
 
-    // 구버전 타입명 마이그레이션
     const typeMap = { '과세연금저축':'과세 연금저축', '비과세연금저축':'비과세 연금저축' };
-    window.state.savings.forEach(s    => { if(typeMap[s.type]) s.type = typeMap[s.type]; });
-    window.state.portfolios.forEach(p => { if(typeMap[p.type]) p.type = typeMap[p.type]; });
+    state.savings.forEach(s    => { if(typeMap[s.type]) s.type = typeMap[s.type]; });
+    state.portfolios.forEach(p => { if(typeMap[p.type]) p.type = typeMap[p.type]; });
 
     showToast('☁️ 클라우드에서 불러옴');
   } catch(e) {
@@ -146,22 +142,15 @@ onAuthStateChanged(auth, async user => {
   currentUser = user;
   updateAuthUI(user);
   if (user) {
-    // 완전 초기화 후 Firebase 로드
-    window.state.savings = []; window.state.portfolios = []; window.state.maturity = [];
-    window.state.memo = ''; window.idCnt = 1;
+    state.savings = []; state.portfolios = []; state.maturity = [];
+    state.memo = ''; idCnt = 1;
     await loadFromFirebase();
     renderAll();
-    if(window.state.gasUrl) setTimeout(() => refreshAllPrices(), 1500);
+    if(state.gasUrl) setTimeout(() => refreshAllPrices(), 1500);
     setTimeout(() => renderSnapshotButtons(), 2000);
     checkYearEndSnapshot();
   }
 });
-
-// ─────────────── 전역 노출 ───────────────
-window.googleLogin          = googleLogin;
-window.googleLogout         = googleLogout;
-window.saveToFirebase       = saveToFirebase;
-window.scheduleFirebaseSave = scheduleFirebaseSave;
 
 // ─────────────── 연도별 스냅샷 ───────────────
 async function saveYearSnapshot(year){
@@ -171,11 +160,11 @@ async function saveYearSnapshot(year){
       year,
       savedAt:    new Date().toISOString(),
       salary:     document.getElementById('salary')?.value || '',
-      savings:    window.state.savings,
-      portfolios: window.state.portfolios,
-      maturity:   window.state.maturity,
-      memo:       window.state.memo || '',
-      idCnt: window.idCnt,
+      savings:    state.savings,
+      portfolios: state.portfolios,
+      maturity:   state.maturity,
+      memo:       state.memo || '',
+      idCnt,
     };
     await setDoc(doc(db, 'users', currentUser.uid, 'snapshots', String(year)), data);
     showToast(`✅ ${year}년 스냅샷 저장됨`);
@@ -192,20 +181,19 @@ async function loadYearSnapshot(year){
     const snap = await getDoc(doc(db, 'users', currentUser.uid, 'snapshots', String(year)));
     if(!snap.exists()){ showToast(`❌ ${year}년 스냅샷이 없습니다`); return; }
     const data = snap.data();
-    // 임시로 state에 로드 (현재 데이터 백업)
     window._backupState = JSON.parse(JSON.stringify({
-      savings: window.state.savings, portfolios: window.state.portfolios,
-      maturity: window.state.maturity, memo: window.state.memo
+      savings: state.savings, portfolios: state.portfolios,
+      maturity: state.maturity, memo: state.memo
     }));
     window._isPreview = year;
-    if(data.savings)    window.state.savings    = data.savings;
-    if(data.portfolios) window.state.portfolios = data.portfolios;
-    if(data.maturity)   window.state.maturity   = data.maturity;
-    if(data.memo)       window.state.memo       = data.memo;
+    if(data.savings)    state.savings    = data.savings;
+    if(data.portfolios) state.portfolios = data.portfolios;
+    if(data.maturity)   state.maturity   = data.maturity;
+    if(data.memo)       state.memo       = data.memo;
     const salEl = document.getElementById('salary');
     if(salEl && data.salary) salEl.value = data.salary;
     renderAll();
-    showToast(`📅 ${year}년 데이터 미리보기 중... [현재로 돌아가기] 버튼으로 복원하세요`);
+    showToast(`📅 ${year}년 데이터 미리보기 중`);
     renderSnapshotButtons();
   } catch(e) {
     showToast('❌ 불러오기 실패: ' + e.message);
@@ -214,10 +202,10 @@ async function loadYearSnapshot(year){
 
 function restoreCurrentData(){
   if(!window._backupState) return;
-  window.state.savings    = window._backupState.savings;
-  window.state.portfolios = window._backupState.portfolios;
-  window.state.maturity   = window._backupState.maturity;
-  window.state.memo       = window._backupState.memo;
+  state.savings    = window._backupState.savings;
+  state.portfolios = window._backupState.portfolios;
+  state.maturity   = window._backupState.maturity;
+  state.memo       = window._backupState.memo;
   window._backupState = null;
   window._isPreview   = null;
   renderAll();
@@ -229,7 +217,6 @@ async function renderSnapshotButtons(){
   const wrap = document.getElementById('snapshot-btns');
   if(!wrap || !currentUser) return;
   try {
-    // 스냅샷 목록 조회 (간단히 최근 5년 체크)
     const currentYear = new Date().getFullYear();
     const years = [];
     for(let y = currentYear; y >= currentYear - 4; y--){
@@ -243,7 +230,7 @@ async function renderSnapshotButtons(){
                background:${isPreview===y?'var(--accent)':'var(--surface2)'};
                color:${isPreview===y?'var(--bg)':'var(--text3)'};
                border:1px solid ${isPreview===y?'var(--accent)':'var(--border)'};">
-        ${isPreview===y?'현재로':''}${y}년
+        ${y}년
       </button>`
     ).join('');
     if(isPreview){
@@ -256,18 +243,72 @@ async function renderSnapshotButtons(){
   } catch(e){ console.error(e); }
 }
 
-// 매년 12월 31일 자동 스냅샷
 async function checkYearEndSnapshot(){
   const now = new Date();
   if(now.getMonth()===11 && now.getDate()===31){
     const year = now.getFullYear();
     const snap = await getDoc(doc(db, 'users', currentUser.uid, 'snapshots', String(year)));
-    if(!snap.exists()){
-      await saveYearSnapshot(year);
-    }
+    if(!snap.exists()) await saveYearSnapshot(year);
   }
 }
-window.saveYearSnapshot   = saveYearSnapshot;
-window.loadYearSnapshot   = loadYearSnapshot;
-window.restoreCurrentData = restoreCurrentData;
+
+// ─────────────── Anthropic API 키 ───────────────
+async function getAnthropicKey() {
+  const snap = await getDoc(doc(db, 'config', 'api_keys'));
+  if(!snap.exists()) throw new Error('API 키가 없습니다');
+  return snap.data().anthropic_key;
+}
+
+// ─────────────── Finnhub 키 ───────────────
+async function getFinnhubKey() {
+  const snap = await getDoc(doc(db, 'config', 'api_keys'));
+  if(!snap.exists()) throw new Error('Finnhub 키가 없습니다');
+  return snap.data().finnhub_key;
+}
+
+// ─────────────── 해외주식 시세 (Finnhub) ───────────────
+async function fetchUSStockPrice(symbol, finnhubKey) {
+  const res = await fetch(`https://finnhub.io/api/v1/quote?symbol=${symbol}&token=${finnhubKey}`);
+  if(!res.ok) throw new Error('Finnhub 오류: ' + res.status);
+  const data = await res.json();
+  if(data.c === undefined || data.c === 0) throw new Error('종목을 찾을 수 없습니다: ' + symbol);
+  return { price: data.c, prevClose: data.pc, change: data.d, changePct: data.dp };
+}
+
+async function fetchUSStocksPrices(symbols) {
+  const finnhubKey = await getFinnhubKey();
+  const results = {};
+  for(const sym of symbols) {
+    try {
+      results[sym] = await fetchUSStockPrice(sym, finnhubKey);
+    } catch(e) {
+      results[sym] = { error: e.message };
+    }
+  }
+  return results;
+}
+
+// ─────────────── 환율 (USD→KRW) ───────────────
+async function fetchExchangeRate() {
+  try {
+    const res = await fetch('https://open.er-api.com/v6/latest/USD');
+    const data = await res.json();
+    return data.rates.KRW;
+  } catch(e) {
+    console.error('환율 조회 실패:', e);
+    return null;
+  }
+}
+
+// ─────────────── 전역 노출 ───────────────
+window.googleLogin          = googleLogin;
+window.googleLogout         = googleLogout;
+window.saveToFirebase       = saveToFirebase;
+window.scheduleFirebaseSave = scheduleFirebaseSave;
+window.saveYearSnapshot     = saveYearSnapshot;
+window.loadYearSnapshot     = loadYearSnapshot;
+window.restoreCurrentData   = restoreCurrentData;
 window.renderSnapshotButtons = renderSnapshotButtons;
+window.getAnthropicKey      = getAnthropicKey;
+window.fetchUSStocksPrices  = fetchUSStocksPrices;
+window.fetchExchangeRate    = fetchExchangeRate;
