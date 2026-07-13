@@ -24,3 +24,7 @@ const BROKERS = [
   'KB증권','신한투자증권','하나증권','대신증권','메리츠증권',
   'IBK투자증권','유안타증권','NH나무증권','카카오페이증권','토스증권','기타'
 ];
+-e 
+// firebase.js(module)에서 접근 가능하도록 노출
+window.state = state;
+window.idCnt = 1;

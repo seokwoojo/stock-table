@@ -21,6 +21,11 @@ const auth     = getAuth(app);
 const db       = getFirestore(app);
 const provider = new GoogleAuthProvider();
 
+// module scope에서 전역 state/getIdCnt() 접근
+const s = () => window.state;
+const getIdCnt = () => window.idCnt;
+const setIdCnt = (v) => { window.idCnt = v; };
+
 let currentUser = null;
 
 // ─────────────── 로그인 / 로그아웃 ───────────────
@@ -45,13 +50,13 @@ async function saveToFirebase() {
     const data = {
       salary:     document.getElementById('salary')?.value    || '',
       projRate:   document.getElementById('proj-rate')?.value || '',
-      savings:    state.savings,
-      portfolios: state.portfolios,
-      maturity:   state.maturity,
-      gasUrl:     state.gasUrl,
-      memo:       state.memo || '',
-      deletedFixedTypes: state.deletedFixedTypes || [],
-      idCnt,
+      savings:    s().savings,
+      portfolios: s().portfolios,
+      maturity:   s().maturity,
+      gasUrl:     s().gasUrl,
+      memo:       s().memo || '',
+      deletedFixedTypes: s().deletedFixedTypes || [],
+      getIdCnt(),
       updatedAt:  new Date().toISOString(),
     };
     await setDoc(doc(db, 'users', currentUser.uid), data);
@@ -66,11 +71,11 @@ async function saveToFirebase() {
 async function loadFromFirebase() {
   if (!currentUser) return;
 
-  state.savings    = [];
-  state.portfolios = [];
-  state.maturity   = [];
-  state.memo       = '';
-  state.deletedFixedTypes = [];
+  s().savings    = [];
+  s().portfolios = [];
+  s().maturity   = [];
+  s().memo       = '';
+  s().deletedFixedTypes = [];
   idCnt            = 1;
 
   try {
@@ -85,17 +90,17 @@ async function loadFromFirebase() {
     const prEl  = document.getElementById('proj-rate');
     if(salEl && data.salary)    salEl.value   = data.salary;
     if(prEl  && data.projRate)  prEl.value    = data.projRate;
-    if(data.savings)           state.savings           = data.savings;
-    if(data.portfolios)        state.portfolios        = data.portfolios;
-    if(data.maturity)          state.maturity          = data.maturity;
-    if(data.gasUrl)            state.gasUrl            = data.gasUrl;
-    if(data.memo)              state.memo              = data.memo;
-    if(data.deletedFixedTypes) state.deletedFixedTypes = data.deletedFixedTypes;
+    if(data.savings)           s().savings           = data.savings;
+    if(data.portfolios)        s().portfolios        = data.portfolios;
+    if(data.maturity)          s().maturity          = data.maturity;
+    if(data.gasUrl)            s().gasUrl            = data.gasUrl;
+    if(data.memo)              s().memo              = data.memo;
+    if(data.deletedFixedTypes) s().deletedFixedTypes = data.deletedFixedTypes;
     if(data.idCnt)             idCnt                   = data.idCnt;
 
     const typeMap = { '과세연금저축':'과세 연금저축', '비과세연금저축':'비과세 연금저축' };
-    state.savings.forEach(s    => { if(typeMap[s.type]) s.type = typeMap[s.type]; });
-    state.portfolios.forEach(p => { if(typeMap[p.type]) p.type = typeMap[p.type]; });
+    s().savings.forEach(s    => { if(typeMap[s.type]) s.type = typeMap[s.type]; });
+    s().portfolios.forEach(p => { if(typeMap[p.type]) p.type = typeMap[p.type]; });
 
     showToast('☁️ 클라우드에서 불러옴');
   } catch(e) {
@@ -142,11 +147,11 @@ onAuthStateChanged(auth, async user => {
   currentUser = user;
   updateAuthUI(user);
   if (user) {
-    state.savings = []; state.portfolios = []; state.maturity = [];
-    state.memo = ''; idCnt = 1;
+    s().savings = []; s().portfolios = []; s().maturity = [];
+    s().memo = ''; idCnt = 1;
     await loadFromFirebase();
     renderAll();
-    if(state.gasUrl) setTimeout(() => refreshAllPrices(), 1500);
+    if(s().gasUrl) setTimeout(() => refreshAllPrices(), 1500);
     setTimeout(() => renderSnapshotButtons(), 2000);
     checkYearEndSnapshot();
   }
@@ -160,11 +165,11 @@ async function saveYearSnapshot(year){
       year,
       savedAt:    new Date().toISOString(),
       salary:     document.getElementById('salary')?.value || '',
-      savings:    state.savings,
-      portfolios: state.portfolios,
-      maturity:   state.maturity,
-      memo:       state.memo || '',
-      idCnt,
+      savings:    s().savings,
+      portfolios: s().portfolios,
+      maturity:   s().maturity,
+      memo:       s().memo || '',
+      getIdCnt(),
     };
     await setDoc(doc(db, 'users', currentUser.uid, 'snapshots', String(year)), data);
     showToast(`✅ ${year}년 스냅샷 저장됨`);
@@ -182,14 +187,14 @@ async function loadYearSnapshot(year){
     if(!snap.exists()){ showToast(`❌ ${year}년 스냅샷이 없습니다`); return; }
     const data = snap.data();
     window._backupState = JSON.parse(JSON.stringify({
-      savings: state.savings, portfolios: state.portfolios,
-      maturity: state.maturity, memo: state.memo
+      savings: s().savings, portfolios: s().portfolios,
+      maturity: s().maturity, memo: s().memo
     }));
     window._isPreview = year;
-    if(data.savings)    state.savings    = data.savings;
-    if(data.portfolios) state.portfolios = data.portfolios;
-    if(data.maturity)   state.maturity   = data.maturity;
-    if(data.memo)       state.memo       = data.memo;
+    if(data.savings)    s().savings    = data.savings;
+    if(data.portfolios) s().portfolios = data.portfolios;
+    if(data.maturity)   s().maturity   = data.maturity;
+    if(data.memo)       s().memo       = data.memo;
     const salEl = document.getElementById('salary');
     if(salEl && data.salary) salEl.value = data.salary;
     renderAll();
@@ -202,10 +207,10 @@ async function loadYearSnapshot(year){
 
 function restoreCurrentData(){
   if(!window._backupState) return;
-  state.savings    = window._backupState.savings;
-  state.portfolios = window._backupState.portfolios;
-  state.maturity   = window._backupState.maturity;
-  state.memo       = window._backupState.memo;
+  s().savings    = window._backupState.savings;
+  s().portfolios = window._backupState.portfolios;
+  s().maturity   = window._backupState.maturity;
+  s().memo       = window._backupState.memo;
   window._backupState = null;
   window._isPreview   = null;
   renderAll();
