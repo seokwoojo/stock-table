@@ -52,7 +52,7 @@ async function saveToFirebase() {
       gasUrl:     window.state.gasUrl,
       memo:       window.state.memo || '',
       deletedFixedTypes: window.state.deletedFixedTypes || [],
-      window.idCnt,
+      idCnt: window.idCnt,
       updatedAt:  new Date().toISOString(),
     };
     await setDoc(doc(db, 'users', currentUser.uid), data);
@@ -175,7 +175,7 @@ async function saveYearSnapshot(year){
       portfolios: window.state.portfolios,
       maturity:   window.state.maturity,
       memo:       window.state.memo || '',
-      window.idCnt,
+      idCnt: window.idCnt,
     };
     await setDoc(doc(db, 'users', currentUser.uid, 'snapshots', String(year)), data);
     showToast(`✅ ${year}년 스냅샷 저장됨`);
